@@ -28,17 +28,24 @@ docker rm -f "$NAME" >/dev/null 2>&1 || true
 docker run -d --name "$NAME" -e POSTGRES_PASSWORD=fixture-placeholder "$IMAGE" >/dev/null
 trap 'docker rm -f "$NAME" >/dev/null 2>&1 || true' EXIT
 
-echo "waiting for postgres..."
-for _ in $(seq 1 90); do
-  if docker exec "$NAME" pg_isready -U postgres -q 2>/dev/null; then break; fi
+# Wait until the REAL server answers a query. pg_isready is not enough: the alpine image
+# starts a temporary socket-only server during initdb, shuts it down, then restarts the real
+# one — pg_isready can flicker "ready" against the init-phase server, so gate on an actual
+# `SELECT 1` succeeding instead (only true once the final server accepts connections).
+echo "waiting for postgres to accept queries..."
+ready=0
+for _ in $(seq 1 120); do
+  if docker exec "$NAME" psql -U postgres -d postgres -tAc 'SELECT 1' >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
   sleep 1
 done
-if ! docker exec "$NAME" pg_isready -U postgres -q; then
-  echo "FAIL: postgres never became ready; container logs follow"
-  docker logs --tail 30 "$NAME" 2>&1 || true
+if [ "$ready" -ne 1 ]; then
+  echo "FAIL: postgres never became query-ready; container logs follow"
+  docker logs --tail 40 "$NAME" 2>&1 || true
   exit 1
 fi
-sleep 1
 
 echo "loading fixture schema..."
 docker exec -i "$NAME" psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 \

@@ -38,15 +38,6 @@ claude plugin install datawarden@datawarden
 
 For development: `git clone` this repo, then `claude --plugin-dir ./datawarden`.
 
-> **While this repo is private** (pre-release): the marketplace clone runs outside any repo, so
-> a machine whose global gitconfig routes github.com credentials to `gh` (a different account)
-> needs a one-shot helper append:
-> ```bash
-> GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0=osxkeychain \
->   claude plugin marketplace add https://kyle-chalmers@github.com/kyle-chalmers/datawarden.git
-> ```
-> This note disappears when the repo goes public.
-
 **Requirements:** [gitleaks](https://github.com/gitleaks/gitleaks) (`brew install gitleaks`) for
 the secrets scan — the skill fails closed (UNKNOWN, with instructions) rather than substituting a
 weaker scanner. `python3` (stdlib only). Optional: `psql` / [Snowflake CLI](https://docs.snowflake.com/en/developer-guide/snowflake-cli)

@@ -28,18 +28,23 @@ if [ "$(jq -r .name .claude-plugin/plugin.json)" != "datawarden" ]; then
   echo "FAIL: plugin.json name must be 'datawarden'"
   fail=1
 fi
-if ! jq -e 'has("version") | not' .claude-plugin/plugin.json >/dev/null; then
-  echo "FAIL: plugin.json must omit 'version' until first public release (git-SHA versioning)"
+# From 0.1.0 on, a semver version is required (and must NOT also live in the marketplace entry,
+# where plugin.json would silently win).
+if ! jq -e '.version | test("^[0-9]+\\.[0-9]+\\.[0-9]+")' .claude-plugin/plugin.json >/dev/null; then
+  echo "FAIL: plugin.json must carry a semver 'version' (added at 0.1.0)"
+  fail=1
+fi
+if jq -e '.plugins[0] | has("version")' .claude-plugin/marketplace.json >/dev/null; then
+  echo "FAIL: marketplace.json plugin entry must NOT set version (plugin.json is the source of truth)"
   fail=1
 fi
 
-# Non-strict during dev: --strict escalates the intentional absence of a version field
-# (git-SHA versioning until first public release) into an error. At public release,
-# add semver to plugin.json and switch this to `claude plugin validate . --strict`.
-step "claude plugin validate"
+# Strict from the 0.1.0 release onward: plugin.json now carries a semver version, so --strict
+# no longer trips on a missing version field. --strict treats warnings as errors.
+step "claude plugin validate --strict"
 if command -v claude >/dev/null 2>&1; then
-  if ! claude plugin validate .; then
-    echo "FAIL: claude plugin validate"
+  if ! claude plugin validate . --strict; then
+    echo "FAIL: claude plugin validate --strict"
     fail=1
   fi
 else
