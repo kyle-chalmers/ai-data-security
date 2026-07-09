@@ -28,21 +28,26 @@ docker rm -f "$NAME" >/dev/null 2>&1 || true
 docker run -d --name "$NAME" -e POSTGRES_PASSWORD=fixture-placeholder "$IMAGE" >/dev/null
 trap 'docker rm -f "$NAME" >/dev/null 2>&1 || true' EXIT
 
-# Wait until the REAL server answers a query. pg_isready is not enough: the alpine image
-# starts a temporary socket-only server during initdb, shuts it down, then restarts the real
-# one — pg_isready can flicker "ready" against the init-phase server, so gate on an actual
-# `SELECT 1` succeeding instead (only true once the final server accepts connections).
-echo "waiting for postgres to accept queries..."
+# Wait for the REAL server, not the init-phase one. On a fresh container the alpine image runs
+# initdb behind a TEMPORARY server (to set the password), logs "ready to accept connections",
+# shuts it down, then starts the real server and logs "ready to accept connections" a SECOND
+# time. A plain `SELECT 1` (or pg_isready) can succeed against the temp server, after which the
+# restart yanks the socket out from under the next command. So the gate requires BOTH: that
+# "ready to accept connections" has appeared at least twice (proves we are past the init
+# restart) AND that a live query succeeds. The count only reaches 2 once the real server is up,
+# so this cannot pass early regardless of CI timing.
+echo "waiting for postgres real server (past init restart)..."
 ready=0
 for _ in $(seq 1 120); do
-  if docker exec "$NAME" psql -U postgres -d postgres -tAc 'SELECT 1' >/dev/null 2>&1; then
+  n_ready="$(docker logs "$NAME" 2>&1 | grep -c 'ready to accept connections' || true)"
+  if [ "${n_ready:-0}" -ge 2 ] && docker exec "$NAME" psql -U postgres -d postgres -tAc 'SELECT 1' >/dev/null 2>&1; then
     ready=1
     break
   fi
   sleep 1
 done
 if [ "$ready" -ne 1 ]; then
-  echo "FAIL: postgres never became query-ready; container logs follow"
+  echo "FAIL: postgres real server never came up; container logs follow"
   docker logs --tail 40 "$NAME" 2>&1 || true
   exit 1
 fi
