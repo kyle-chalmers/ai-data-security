@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deterministic baseline checks for datawarden. Run at session start and before every commit.
+# Deterministic baseline checks for ai-data-security. Run at session start and before every commit.
 # Exits non-zero on any failure. No LLM calls.
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
@@ -24,8 +24,8 @@ for d in skills hooks commands agents; do
 done
 
 step "plugin.json contract"
-if [ "$(jq -r .name .claude-plugin/plugin.json)" != "datawarden" ]; then
-  echo "FAIL: plugin.json name must be 'datawarden'"
+if [ "$(jq -r .name .claude-plugin/plugin.json)" != "ai-data-security" ]; then
+  echo "FAIL: plugin.json name must be 'ai-data-security'"
   fail=1
 fi
 # From 0.1.0 on, a semver version is required (and must NOT also live in the marketplace entry,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic verdicts for the datawarden secrets-scanner skill.
+"""Deterministic verdicts for the ai-data-security secrets-scanner skill.
 
 Consumes two gitleaks JSON reports (history scan: `gitleaks git`; working-tree scan:
 `gitleaks dir`) and computes the exposure matrix gitleaks lacks:
@@ -159,8 +159,8 @@ def commit_pushed(target, commit):
 
 
 def load_suppressions(target):
-    """Parse .datawarden-ignore: '<fingerprint> [expires=YYYY-MM-DD] [reason=...]'."""
-    path = os.path.join(target, ".datawarden-ignore")
+    """Parse .ai-data-security-ignore: '<fingerprint> [expires=YYYY-MM-DD] [reason=...]'."""
+    path = os.path.join(target, ".ai-data-security-ignore")
     entries = {}
     if not os.path.exists(path):
         return entries

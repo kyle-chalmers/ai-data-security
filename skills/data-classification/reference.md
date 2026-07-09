@@ -23,13 +23,13 @@ CI covers this with a generated `chmod 000` file (see `tests/run-fixture-checks.
 procedure for environments where that cannot run:
 
 1. In a scratch copy of any repo, `chmod 000 <some-file>`.
-2. Run `/datawarden:data-classification <repo>`.
+2. Run `/ai-data-security:data-classification <repo>`.
 3. Expected: the file appears as a DC-03 UNKNOWN with its path and a fix-permissions action;
    the scorecard's UNKNOWN count is non-zero; the file does NOT appear in the classification
    table as if it had been assessed.
 
 ## Suppressing a DC finding
 
-Add the finding's fingerprint (`DC-01:<path>:<tier>`) to `.datawarden-ignore` at the target
+Add the finding's fingerprint (`DC-01:<path>:<tier>`) to `.ai-data-security-ignore` at the target
 root, per [finding-format.md](../../reference/finding-format.md). Suppressed findings always
 appear in the report appendix; an unparseable `expires=` value counts as expired (fail closed).

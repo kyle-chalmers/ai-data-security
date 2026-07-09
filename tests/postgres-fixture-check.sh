@@ -18,7 +18,7 @@ if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
 fi
 
 IMAGE="postgres:16-alpine"
-NAME="datawarden-pg-fixture"
+NAME="ai-data-security-pg-fixture"
 PACK="skills/db-access-audit/sql/postgres"
 EXPECTED="tests/fixtures/postgres/expected"
 OUT="tests/fixtures/generated/postgres-out"

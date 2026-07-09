@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deterministic fixture assertions for datawarden. No LLM calls.
+# Deterministic fixture assertions for ai-data-security. No LLM calls.
 # Bidirectional: a missing expected finding is a false-negative regression;
 # an unexpected finding on clean paths is a false-positive regression.
 set -euo pipefail
@@ -123,10 +123,10 @@ echo "README" > "$CLEAN/README.md"
 run_eval "$CLEAN"
 assert "clean repo: zero findings" '.findings | length == 0'
 
-step "suppression: .datawarden-ignore moves a finding to the appendix"
+step "suppression: .ai-data-security-ignore moves a finding to the appendix"
 REPO="$(tests/fixtures/make-secrets-repo.sh | tail -1)"
 FP="$(run_eval "$REPO"; jq -r '[.findings[] | select(.check_id == "SS-03")][0].fingerprint' "$TMP/out.json")"
-printf '%s reason=fixture test\n' "$FP" > "$REPO/.datawarden-ignore"
+printf '%s reason=fixture test\n' "$FP" > "$REPO/.ai-data-security-ignore"
 run_eval "$REPO"
 assert "suppressed finding is in the appendix, not findings" \
   '(.findings | map(.check_id) | index("SS-03")) == null and (.suppressed | length == 1)'
@@ -203,11 +203,11 @@ else
 fi
 chmod 644 "$DCDIR/locked.txt" 2>/dev/null || true
 
-step "classification suppression: .datawarden-ignore moves DC finding to appendix"
+step "classification suppression: .ai-data-security-ignore moves DC finding to appendix"
 DCSUP="$TMP/dc-suppress"
 mkdir -p "$DCSUP"
 cp tests/fixtures/classify-repo/accounts.csv "$DCSUP/"
-printf 'DC-01:accounts.csv:Restricted reason=fixture test\n' > "$DCSUP/.datawarden-ignore"
+printf 'DC-01:accounts.csv:Restricted reason=fixture test\n' > "$DCSUP/.ai-data-security-ignore"
 python3 "$CLASSIFY" --target "$DCSUP" --emit-json "$TMP/out.json"
 assert "DC-01 suppressed into appendix" \
   '(.findings | map(.check_id) | index("DC-01")) == null and (.suppressed | length == 1)'
@@ -215,7 +215,7 @@ assert "DC-01 suppressed into appendix" \
 step "db-access-audit suppression via --ignore-dir (recorded CSVs, no docker)"
 DBSUP="$TMP/db-suppress"
 mkdir -p "$DBSUP"
-printf 'DB-04:views:db reason=fixture test\n' > "$DBSUP/.datawarden-ignore"
+printf 'DB-04:views:db reason=fixture test\n' > "$DBSUP/.ai-data-security-ignore"
 python3 skills/db-access-audit/scripts/eval_grants.py \
   --grants tests/fixtures/postgres/expected/grants.csv \
   --pii tests/fixtures/postgres/expected/pii_columns.csv \

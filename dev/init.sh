@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Session-start orientation for the datawarden long-running build harness.
+# Session-start orientation for the ai-data-security long-running build harness.
 # Read SPEC.md first if this is your first session.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-echo "=== datawarden build harness ==="
+echo "=== ai-data-security build harness ==="
 echo
 echo "--- last 5 commits ---"
 git log --oneline -5 2>/dev/null || echo "(no commits yet)"

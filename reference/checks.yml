@@ -1,5 +1,5 @@
 {
-  "$comment": "Registry mapping every datawarden check to its citations and the fixture(s) proving it fires. CI fails a check that lacks a citation key present in citations.yml or a fixture id. Fixture ids beginning with 'manual-' are procedure-documented checks that cannot run in CI (documented in the owning skill's reference.md). This file is JSON written in a .yml file so jq can validate it with zero dependencies (JSON is a subset of YAML).",
+  "$comment": "Registry mapping every ai-data-security check to its citations and the fixture(s) proving it fires. CI fails a check that lacks a citation key present in citations.yml or a fixture id. Fixture ids beginning with 'manual-' are procedure-documented checks that cannot run in CI (documented in the owning skill's reference.md). This file is JSON written in a .yml file so jq can validate it with zero dependencies (JSON is a subset of YAML).",
   "checks": {
     "SS-01": {
       "skill": "secrets-scanner",

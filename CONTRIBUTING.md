@@ -1,4 +1,4 @@
-# Contributing to DataWarden
+# Contributing to AI Data Security
 
 ## Ground rules (non-negotiable for a security repo)
 

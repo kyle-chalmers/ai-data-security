@@ -1,4 +1,4 @@
-# DataWarden — v1 Specification
+# AI Data Security — v1 Specification
 
 > Approved scope for v1. Changes to this document require explicit maintainer approval.
 > The build harness in `dev/` tracks progress against this spec; `dev/feature_list.json` is the
@@ -6,7 +6,7 @@
 
 ## Mission
 
-DataWarden is an open-source Claude Code plugin that helps **data professionals** achieve safe
+AI Data Security is an open-source Claude Code plugin that helps **data professionals** achieve safe
 interactions between AI and their data, on both sides:
 
 - **AI side** — sensitive-data leakage, secrets readable by agents, excessive agency / unsafe tool
@@ -52,7 +52,7 @@ Every finding cites a recognized standard. IMPLEMENT flows (human-gated fixes) a
    CI lint proving zero mutating statements in both SQL packs). Bring-your-own-connection via the
    user's pre-authenticated `psql`/`snow`; credentials are never stored. A human gate shows the
    connection target and exact SQL before anything executes.
-4. Suppression via `.datawarden-ignore` (line-number-free fingerprints, optional expiry); suppressed
+4. Suppression via `.ai-data-security-ignore` (line-number-free fingerprints, optional expiry); suppressed
    findings always appear in a report appendix — nothing disappears silently.
 5. Fixture safety doctrine: committed fixtures use only vendor-documented example credentials,
    checksum-invalid tokens, and famous fake identifiers. Anything genuinely secret-shaped is
@@ -74,6 +74,6 @@ Every finding cites a recognized standard. IMPLEMENT flows (human-gated fixes) a
 
 - Each slice in `dev/feature_list.json` has a runnable check; `dev/validate.sh` is the always-runnable
   deterministic baseline.
-- Final v1 check: clean-checkout marketplace install; a full `/datawarden:security-audit` run over the
+- Final v1 check: clean-checkout marketplace install; a full `/ai-data-security:security-audit` run over the
   combined fixtures produces one cited, severity-sorted report; gitleaks tree+history self-scan clean;
   CI green; adversarial fresh-context review of the implementation against this spec.

@@ -6,7 +6,7 @@ Please use GitHub's **private vulnerability reporting** on this repository (Secu
 vulnerability). Do not open a public issue for anything exploitable. You can expect an
 acknowledgment within a week.
 
-## Trust model — read this if you're evaluating DataWarden
+## Trust model — read this if you're evaluating AI Data Security
 
 A security tool must be explicit about its own attack surface:
 

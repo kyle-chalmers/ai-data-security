@@ -1,5 +1,5 @@
 {
-  "$comment": "DataWarden practices what it audits: these are the secret deny-rules ai-config-audit's AC-01 recommends. Deny rules bind Claude Code's file tools, not arbitrary subprocesses (only OS sandboxing does that) — see skills/ai-config-audit/reference.md.",
+  "$comment": "AI Data Security practices what it audits: these are the secret deny-rules ai-config-audit's AC-01 recommends. Deny rules bind Claude Code's file tools, not arbitrary subprocesses (only OS sandboxing does that) — see skills/ai-config-audit/reference.md.",
   "permissions": {
     "deny": ["Read(./.env)", "Read(./.env.*)", "Read(./secrets/**)"]
   }

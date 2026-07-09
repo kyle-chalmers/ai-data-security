@@ -1,7 +1,21 @@
 # Changelog
 
-All notable changes to DataWarden are documented here. This project follows
+All notable changes to AI Data Security are documented here. This project follows
 [Semantic Versioning](https://semver.org). Dates are ISO-8601.
+
+## [0.1.2] — 2026-07-09
+
+### Changed
+- **Renamed the plugin `datawarden` → `ai-data-security`** to match the AI Data Security series.
+  This changes the repository, the command prefix (`/ai-data-security:<skill>`), the marketplace
+  install id (`ai-data-security@ai-data-security`), and the suppression-file convention
+  (`.datawarden-ignore` → `.ai-data-security-ignore`). No functional change to any skill. GitHub
+  redirects the old repo URL, but existing installs should be reinstalled under the new name:
+  ```bash
+  claude plugin marketplace remove datawarden 2>/dev/null; claude plugin uninstall datawarden 2>/dev/null
+  claude plugin marketplace add kyle-chalmers/ai-data-security
+  claude plugin install ai-data-security@ai-data-security
+  ```
 
 ## [0.1.1] — 2026-07-09
 
@@ -13,9 +27,9 @@ All notable changes to DataWarden are documented here. This project follows
   secrets hardcoded inside source are still caught by content scanning.
 
 ### Added
-- DataWarden now passes its own `ai-config-audit` — a `.claude/settings.json` ships the secret
+- AI Data Security now passes its own `ai-config-audit` — a `.claude/settings.json` ships the secret
   deny-rules AC-01 recommends.
-- A repository `.datawarden-ignore` triages DataWarden's own example/fake PII (docs, tests,
+- A repository `.ai-data-security-ignore` triages AI Data Security's own example/fake PII (docs, tests,
   fixtures) so a self-audit returns clean-with-appendix; every entry is visible and reasoned.
 
 ## [0.1.0] — 2026-07-09
@@ -43,7 +57,7 @@ First public release. Feature-complete v1: audit-only, read-only, every finding 
 
 - Deterministic stdlib-Python evaluators own every verdict; the model narrates but cannot change
   severity, confidence, or exposure. Severity is capped by confidence; unverifiable checks are
-  first-class UNKNOWN (fail-closed). Suppressions (`.datawarden-ignore`) always appear in an appendix.
+  first-class UNKNOWN (fail-closed). Suppressions (`.ai-data-security-ignore`) always appear in an appendix.
 - Verified-only citation registry (OWASP LLM Top 10 2025, MITRE ATLAS, MCP Security Best Practices,
   NIST SP 800-122, NIST AI 600-1).
 
@@ -57,5 +71,6 @@ First public release. Feature-complete v1: audit-only, read-only, every finding 
   hunt): permission-glob precision, uniform fail-closed suppression, a value-leak in classification
   evidence, crash-resistance on hostile inputs, and a regex ReDoS were all fixed and regression-locked.
 
-[0.1.1]: https://github.com/kyle-chalmers/datawarden/releases/tag/v0.1.1
-[0.1.0]: https://github.com/kyle-chalmers/datawarden/releases/tag/v0.1.0
+[0.1.2]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.1.2
+[0.1.1]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.1.1
+[0.1.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.1.0

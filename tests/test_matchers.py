@@ -50,7 +50,7 @@ eval_grants = load("eval_grants", "skills/db-access-audit/scripts/eval_grants.py
 
 for mod in (eval_secrets, permeval, classify, eval_grants):
     with tempfile.TemporaryDirectory() as tmp:
-        with open(os.path.join(tmp, ".datawarden-ignore"), "w", encoding="utf-8") as f:
+        with open(os.path.join(tmp, ".ai-data-security-ignore"), "w", encoding="utf-8") as f:
             f.write("X:a:b expires=not-a-date reason=malformed\n")
             f.write("X:c:d expires= reason=blank fails open\n")
             f.write("X:e:f expires=2099-01-01 reason=valid future\n")

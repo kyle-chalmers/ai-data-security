@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic verdicts for the datawarden db-access-audit skill (Postgres pack).
+"""Deterministic verdicts for the ai-data-security db-access-audit skill (Postgres pack).
 
 Consumes the CSV outputs of the read-only SQL pack (grants.csv, pii_columns.csv,
 masked_views.csv, audit_logging.csv) and assigns checks:
@@ -58,9 +58,9 @@ def load_registry():
 
 
 def load_suppressions(target):
-    """Same .datawarden-ignore contract as the other evaluators (see finding-format.md).
+    """Same .ai-data-security-ignore contract as the other evaluators (see finding-format.md).
     Fail closed: an unparseable expiry counts as expired."""
-    path = os.path.join(target, ".datawarden-ignore")
+    path = os.path.join(target, ".ai-data-security-ignore")
     entries = {}
     if not os.path.exists(path):
         return entries
@@ -115,7 +115,7 @@ def main():
     parser.add_argument("--role", required=True, help="the AI principal analyzed")
     parser.add_argument("--principal-confirmed", action="store_true",
                         help="user explicitly confirmed --role is the AI principal")
-    parser.add_argument("--ignore-dir", help="directory holding a .datawarden-ignore to apply "
+    parser.add_argument("--ignore-dir", help="directory holding a .ai-data-security-ignore to apply "
                         "(the audited project's root, or the --recorded dir)")
     parser.add_argument("--emit-json")
     args = parser.parse_args()
@@ -232,7 +232,7 @@ def main():
                 "mask functions). AI access appears to go straight at raw objects.",
                 [
                     "Stand up a curated schema of masked views as the only surface the AI role can read.",
-                    "The datawarden v2 safe-db-access recipe implements this end-to-end.",
+                    "The ai-data-security v2 safe-db-access recipe implements this end-to-end.",
                 ],
             ))
 

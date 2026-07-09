@@ -26,7 +26,7 @@ instructions.
    ```
    It emits per-file hints (validated indicator counts, PII column names, filename hits, a
    **floor tier**, confidence), plus the source-of-truth `findings` (DC-01/DC-02, suppression
-   already applied from `.datawarden-ignore`), `unknowns` (DC-03 — one per unreadable file;
+   already applied from `.ai-data-security-ignore`), `unknowns` (DC-03 — one per unreadable file;
    an unreadable file is never a pass and never silently omitted), and `suppressed`.
 
 3. **Assign final tiers.** The floor is binding upward-only:

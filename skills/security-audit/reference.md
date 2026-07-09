@@ -3,7 +3,7 @@
 ## Merged-report template
 
 ```markdown
-# DataWarden Security Audit — <target>
+# AI Data Security Security Audit — <target>
 **Date** · **Skills run** (with tool versions) · **DB section**: live / recorded / skipped
 
 ## Scorecard

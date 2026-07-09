@@ -1,4 +1,4 @@
-# DataWarden's own repo, audited by DataWarden. Every entry below was reviewed and is benign:
+# AI Data Security's own repo, audited by AI Data Security. Every entry below was reviewed and is benign:
 # a PII-detection tool necessarily contains fake, example, and famous-fake PII-shaped strings in
 # its docs, tests, and fixtures. Suppressed findings still appear in the report's Suppressed
 # appendix — nothing is hidden. No expiry: the repo will always contain example PII by nature.

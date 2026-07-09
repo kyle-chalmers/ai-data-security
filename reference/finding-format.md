@@ -1,6 +1,6 @@
-# DataWarden Finding Format — schema version 1
+# AI Data Security Finding Format — schema version 1
 
-This is the normative contract for every finding any datawarden skill emits. Skills reference this
+This is the normative contract for every finding any ai-data-security skill emits. Skills reference this
 file; they do not restate it. Changes here require a schema version bump and maintainer approval.
 
 ## Check outcomes
@@ -42,7 +42,7 @@ The single false-positive dampener, applied uniformly and mechanically:
 
 Deterministic scripts assign confidence; the model may lower it with stated reasons, never raise it.
 
-## Suppression — `.datawarden-ignore`
+## Suppression — `.ai-data-security-ignore`
 
 A file at the audited target's root. One entry per line:
 

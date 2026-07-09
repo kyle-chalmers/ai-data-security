@@ -1,10 +1,10 @@
 {
-  "name": "datawarden",
-  "description": "DataWarden — data + AI security audits for data professionals.",
+  "name": "ai-data-security",
+  "description": "AI Data Security — data + AI security audits for data professionals.",
   "owner": { "name": "Kyle Chalmers" },
   "plugins": [
     {
-      "name": "datawarden",
+      "name": "ai-data-security",
       "source": "./",
       "description": "Data + AI security audits: AI config, secrets exposure, data classification, and warehouse access — every finding cites a standard."
     }

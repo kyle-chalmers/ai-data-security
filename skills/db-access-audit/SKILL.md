@@ -67,7 +67,7 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
      --views <tmp>/masked_views.csv --settings <tmp>/audit_logging.csv \
      --role <role> [--principal-confirmed] --ignore-dir <dir>
    ```
-   `--ignore-dir` locates the `.datawarden-ignore` to honor: the current project root for live
+   `--ignore-dir` locates the `.ai-data-security-ignore` to honor: the current project root for live
    runs, or the `--recorded` directory in air-gapped mode.
    Pass `--principal-confirmed` ONLY if step 2(b) was confirmed — otherwise verdicts cap at
    MEDIUM/possible by design. For snowflake, apply the interpretation rules in reference.md to
@@ -76,7 +76,7 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
 5. **Render the report** per finding-format.md. Frame remediation around the target state:
    dedicated read-only AI role → SELECT only on a curated schema of masked views → salted
    hashing where joins are needed → audit logging on. Findings DB-02/DB-03/DB-04 should name
-   that path explicitly (it is the datawarden v2 implement recipe).
+   that path explicitly (it is the ai-data-security v2 implement recipe).
 
 If invoked by the `security-audit` orchestrator: only run when connection arguments were
 provided; otherwise return a single DB-06 UNKNOWN ("DB audit skipped — no connection provided")

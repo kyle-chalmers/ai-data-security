@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Deterministic classification verdicts for the datawarden data-classification skill.
+"""Deterministic classification verdicts for the ai-data-security data-classification skill.
 
 Walks a target directory and emits:
 - per-file hints: validated-content indicator COUNTS (emails, format-valid SSNs, Luhn-valid
   card numbers), matched PII column names, filename-pattern hits, and the deterministic
   FLOOR tier per reference/four-tier-framework.md;
 - findings: DC-01 (Restricted-floor file) and DC-02 (Confidential-floor file), with
-  citations, fingerprints, and .datawarden-ignore suppression applied;
+  citations, fingerprints, and .ai-data-security-ignore suppression applied;
 - unknowns: DC-03 for every file that could not be read (fail-closed — an unreadable file
   is never silently omitted).
 
@@ -186,9 +186,9 @@ def load_registry():
 
 
 def load_suppressions(target):
-    """Same .datawarden-ignore contract as the other evaluators (see finding-format.md).
+    """Same .ai-data-security-ignore contract as the other evaluators (see finding-format.md).
     Fail closed: an unparseable expiry counts as expired."""
-    path = os.path.join(target, ".datawarden-ignore")
+    path = os.path.join(target, ".ai-data-security-ignore")
     entries = {}
     if not os.path.exists(path):
         return entries

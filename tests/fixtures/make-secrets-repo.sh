@@ -3,7 +3,7 @@
 #
 # SAFETY DOCTRINE: every secret-shaped string here is RANDOMLY GENERATED AT RUN TIME into the
 # gitignored tests/fixtures/generated/ directory. Nothing secret-shaped is ever committed to the
-# datawarden repo. (The canonical AWS documented example key is NOT used because gitleaks'
+# ai-data-security repo. (The canonical AWS documented example key is NOT used because gitleaks'
 # default config allowlists it — verified empirically 2026-07-07.)
 #
 # Modes (fixture ids in reference/checks.yml):

@@ -5,7 +5,7 @@ argument-hint: "[target-directory] [--home <dir>] [--db '<db-access-audit args>'
 
 # security-audit
 
-Run the full datawarden audit flow over a target and merge everything into ONE report per
+Run the full ai-data-security audit flow over a target and merge everything into ONE report per
 [finding-format.md](${CLAUDE_PLUGIN_ROOT}/reference/finding-format.md). The merged-report
 template, dedupe rules, and phase timings live in [reference.md](reference.md) — read both
 before starting.
@@ -15,10 +15,10 @@ before starting.
 | Phase | What | How |
 |---|---|---|
 | 0 | Retention/training tier | Covered by ai-config-audit's AC-06 UNKNOWN — surface it FIRST in the final report |
-| 1 | Secrets | Invoke skill `datawarden:secrets-scanner` with the target path |
-| 2 | AI config | Invoke skill `datawarden:ai-config-audit` with the target path (append `--home <dir>` if given) |
-| 3 | Classification | Invoke skill `datawarden:data-classification` with the target path |
-| 4 | Database | ONLY if `--db '<args>'` was provided: invoke skill `datawarden:db-access-audit` with exactly those args. Otherwise record a DB-06 UNKNOWN: "DB audit skipped — no connection provided" |
+| 1 | Secrets | Invoke skill `ai-data-security:secrets-scanner` with the target path |
+| 2 | AI config | Invoke skill `ai-data-security:ai-config-audit` with the target path (append `--home <dir>` if given) |
+| 3 | Classification | Invoke skill `ai-data-security:data-classification` with the target path |
+| 4 | Database | ONLY if `--db '<args>'` was provided: invoke skill `ai-data-security:db-access-audit` with exactly those args. Otherwise record a DB-06 UNKNOWN: "DB audit skipped — no connection provided" |
 
 ## Steps
 

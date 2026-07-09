@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic verdicts for the datawarden ai-config-audit skill.
+"""Deterministic verdicts for the ai-data-security ai-config-audit skill.
 
 Audits AI coding-tool configuration for data-safety risks:
 
@@ -267,10 +267,10 @@ def check_transcripts(home, findings):
 
 
 def load_suppressions(target):
-    """Parse .datawarden-ignore (same contract as reference/finding-format.md):
+    """Parse .ai-data-security-ignore (same contract as reference/finding-format.md):
     '<fingerprint> [expires=YYYY-MM-DD] [reason=...]' — duplicated from
     secrets-scanner's evaluator on purpose; each skill's script stays standalone."""
-    path = os.path.join(target, ".datawarden-ignore")
+    path = os.path.join(target, ".ai-data-security-ignore")
     entries = {}
     if not os.path.exists(path):
         return entries

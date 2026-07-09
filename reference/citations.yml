@@ -1,5 +1,5 @@
 {
-  "$comment": "The ONLY citation IDs datawarden findings may use. Every entry was verified against its live source before being added; do not add entries from memory. This file is JSON written in a .yml file \u2014 JSON is a subset of YAML, and keeping it JSON lets dev/validate.sh and CI check it with jq alone (no YAML parser dependency). Entries must be either referenced by checks.yml or cited in shipped prose (SECURITY.md trust model cites owasp-llm01 and atlas-aml-t0051-001); anything else is removed until a check needs it.",
+  "$comment": "The ONLY citation IDs ai-data-security findings may use. Every entry was verified against its live source before being added; do not add entries from memory. This file is JSON written in a .yml file \u2014 JSON is a subset of YAML, and keeping it JSON lets dev/validate.sh and CI check it with jq alone (no YAML parser dependency). Entries must be either referenced by checks.yml or cited in shipped prose (SECURITY.md trust model cites owasp-llm01 and atlas-aml-t0051-001); anything else is removed until a check needs it.",
   "citations": {
     "owasp-llm01": {
       "display": "OWASP LLM01:2025 Prompt Injection",

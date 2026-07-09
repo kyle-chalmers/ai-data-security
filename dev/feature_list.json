@@ -1,5 +1,5 @@
 {
-  "$comment": "IMMUTABLE feature list for the datawarden v1 build (see SPEC.md). Do not add, remove, reword, or reorder features. The ONLY field a work session may change is `passes` (false -> true, after the check is demonstrated, never asserted). Log evidence in dev/progress.txt.",
+  "$comment": "IMMUTABLE feature list for the ai-data-security v1 build (see SPEC.md). Do not add, remove, reword, or reorder features. The ONLY field a work session may change is `passes` (false -> true, after the check is demonstrated, never asserted). Log evidence in dev/progress.txt.",
   "features": [
     {
       "id": "S0.1-plugin-validates",
@@ -12,14 +12,14 @@
       "id": "S0.2-plugin-loads",
       "slice": "0",
       "description": "Plugin loads from a local dir and exposes its skills",
-      "check": "claude --plugin-dir . loads without error and lists datawarden skills",
+      "check": "claude --plugin-dir . loads without error and lists ai-data-security skills",
       "passes": true
     },
     {
       "id": "S0.3-fork-orchestration",
       "slice": "0",
       "description": "Orchestrator skill invokes a context:fork worker skill and receives its return",
-      "check": "/datawarden:security-audit (stub) invokes the forked ai-config-audit stub and echoes DATAWARDEN-STUB lines for both skills",
+      "check": "/ai-data-security:security-audit (stub) invokes the forked ai-config-audit stub and echoes AI-DATA-SECURITY-STUB lines for both skills",
       "passes": true
     },
     {
@@ -33,7 +33,7 @@
       "id": "S1.2-secrets-scanner",
       "slice": "1",
       "description": "secrets-scanner produces exactly the expected, citation-conformant findings on the generated fixture",
-      "check": "tests/fixtures/make-secrets-repo.sh && /datawarden:secrets-scanner <generated repo> -> 1 history-only HIGH + 1 worktree .env CRITICAL (no deny rule), each finding conformant to finding-format.md with a citations.yml citation",
+      "check": "tests/fixtures/make-secrets-repo.sh && /ai-data-security:secrets-scanner <generated repo> -> 1 history-only HIGH + 1 worktree .env CRITICAL (no deny rule), each finding conformant to finding-format.md with a citations.yml citation",
       "passes": true
     },
     {
@@ -47,14 +47,14 @@
       "id": "S2.1-ai-config-audit",
       "slice": "2",
       "description": "ai-config-audit produces the expected findings on the ai-config fixture",
-      "check": "/datawarden:ai-config-audit tests/fixtures/ai-config -> findings: 3 missing secret deny rules, dangerous env-runner allow rule, inline MCP credential, transcript-retention INFO, consumer-retention UNKNOWN with manual-check instructions; deterministic verdicts from scripts/permeval.py",
+      "check": "/ai-data-security:ai-config-audit tests/fixtures/ai-config -> findings: 3 missing secret deny rules, dangerous env-runner allow rule, inline MCP credential, transcript-retention INFO, consumer-retention UNKNOWN with manual-check instructions; deterministic verdicts from scripts/permeval.py",
       "passes": true
     },
     {
       "id": "S3.1-data-classification",
       "slice": "3",
       "description": "data-classification lands fixture files in four distinct tiers with evidence and no sampled values",
-      "check": "/datawarden:data-classification tests/fixtures/classify-repo -> 4 files in 4 distinct tiers, Restricted file yields HIGH, report contains no sampled data values, nothing auto-assigned Public",
+      "check": "/ai-data-security:data-classification tests/fixtures/classify-repo -> 4 files in 4 distinct tiers, Restricted file yields HIGH, report contains no sampled data values, nothing auto-assigned Public",
       "passes": true
     },
     {
@@ -75,14 +75,14 @@
       "id": "S5.1-orchestrator",
       "slice": "5",
       "description": "security-audit orchestrator produces one merged, deduped, cited report end-to-end",
-      "check": "/datawarden:security-audit over combined fixtures -> single report with all 4 sub-audit sections, deduplicated .env finding, Top-5 actions ordered severity-first with rotate-pushed-secrets override, every finding cited",
+      "check": "/ai-data-security:security-audit over combined fixtures -> single report with all 4 sub-audit sections, deduplicated .env finding, Top-5 actions ordered severity-first with rotate-pushed-secrets override, every finding cited",
       "passes": true
     },
     {
       "id": "S6.1-ship-polish",
       "slice": "6",
       "description": "README/SECURITY/CONTRIBUTING complete; real install path works; repo provably clean",
-      "check": "claude plugin marketplace add kyle-chalmers/datawarden && claude plugin install datawarden@datawarden succeeds from a clean checkout; gitleaks tree+history self-scan clean; CI green",
+      "check": "claude plugin marketplace add kyle-chalmers/ai-data-security && claude plugin install ai-data-security@ai-data-security succeeds from a clean checkout; gitleaks tree+history self-scan clean; CI green",
       "passes": true
     }
   ]
