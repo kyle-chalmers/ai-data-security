@@ -40,10 +40,12 @@ git init -q -b main
 git config --local user.name "fixture"
 git config --local user.email "fixture@example.invalid"
 
-# --- history exposure: AWS-shaped pair, committed then deleted -------------------------------
-AKID="AKIA$(rand 'A-Z0-9' 16)"
-ASEC="$(rand 'A-Za-z0-9/+' 40)"
-printf 'aws_access_key_id = %s\naws_secret_access_key = %s\n' "$AKID" "$ASEC" > deploy-creds.txt
+# --- history exposure: a format-detected token, committed then deleted -----------------------
+# Uses a ghp_-shaped token: gitleaks' github-pat rule is FORMAT-based (deterministic). A random
+# AWS secret was detected only via the entropy-based generic-api-key rule, which missed ~8% of
+# random draws and intermittently reddened CI (no history finding -> no SS-04).
+DEPLOY_TOKEN="ghp_$(rand 'A-Za-z0-9' 36)"
+printf 'GITHUB_DEPLOY_TOKEN=%s\n' "$DEPLOY_TOKEN" > deploy-creds.txt
 git add deploy-creds.txt
 git commit -qm "add deploy credentials"
 git rm -q deploy-creds.txt
