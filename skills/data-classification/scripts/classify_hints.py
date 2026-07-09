@@ -35,6 +35,18 @@ FILENAME_PATTERNS = [
     (re.compile(r"(?i)(customer|member|employee|user|contact|lead)"), "Confidential"),
 ]
 
+# A file's NAME only reliably signals data sensitivity for data/config files. Source code and
+# docs routinely contain these words as identifiers or prose (eval_secrets.py, payment_service.go,
+# security.md) without holding sensitive data — for those, judge by CONTENT, not name. Content
+# scanning still runs on every readable file, so a real secret hardcoded in a .py is still caught.
+# Extension-less files (.env, credentials) and data/config extensions (.json, .yaml, .csv, .pem)
+# are NOT skipped, so genuine secret-holding files still floor on their name.
+NAME_HEURISTIC_SKIP_EXT = {
+    ".py", ".js", ".ts", ".tsx", ".jsx", ".go", ".rs", ".java", ".rb", ".php", ".c", ".h",
+    ".cpp", ".cc", ".hpp", ".sh", ".bash", ".zsh", ".ps1", ".md", ".rst", ".adoc", ".html",
+    ".css", ".scss", ".ipynb",
+}
+
 COLUMN_PATTERNS = [
     (re.compile(r"(?i)^(ssn|social_security(_number)?|tax_id|national_id|passport(_number)?)$"), "Restricted"),
     (re.compile(r"(?i)^(card_number|pan|cvv|account_number|routing_number)$"), "Restricted"),
@@ -90,10 +102,11 @@ def classify_file(path, relpath):
         if TIER_ORDER.index(tier) > TIER_ORDER.index(floor):
             floor = tier
 
-    for pattern, tier in FILENAME_PATTERNS:
-        if pattern.search(os.path.basename(relpath)):
-            filename_hits.append(pattern.pattern)
-            raise_floor(tier)
+    if os.path.splitext(relpath)[1].lower() not in NAME_HEURISTIC_SKIP_EXT:
+        for pattern, tier in FILENAME_PATTERNS:
+            if pattern.search(os.path.basename(relpath)):
+                filename_hits.append(pattern.pattern)
+                raise_floor(tier)
 
     # Only read regular files. A FIFO/socket/device would make open() block forever
     # (waiting on a writer) or misbehave — surface it as DC-03 rather than hang the scan.

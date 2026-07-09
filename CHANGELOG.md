@@ -3,6 +3,21 @@
 All notable changes to DataWarden are documented here. This project follows
 [Semantic Versioning](https://semver.org). Dates are ISO-8601.
 
+## [0.1.1] — 2026-07-09
+
+### Fixed
+- **data-classification filename precision** — a source-code or docs filename that merely contains
+  a sensitive word (`eval_secrets.py`, `payment_service.go`, `security.md`) no longer floors the
+  file by name alone; classification of source/doc files is now content-driven. Data/config files
+  (`.env`, `credentials.json`, `secrets.yaml`, `.csv`, `.pem`) still floor on their name, and real
+  secrets hardcoded inside source are still caught by content scanning.
+
+### Added
+- DataWarden now passes its own `ai-config-audit` — a `.claude/settings.json` ships the secret
+  deny-rules AC-01 recommends.
+- A repository `.datawarden-ignore` triages DataWarden's own example/fake PII (docs, tests,
+  fixtures) so a self-audit returns clean-with-appendix; every entry is visible and reasoned.
+
 ## [0.1.0] — 2026-07-09
 
 First public release. Feature-complete v1: audit-only, read-only, every finding cites a standard.
@@ -42,4 +57,5 @@ First public release. Feature-complete v1: audit-only, read-only, every finding 
   hunt): permission-glob precision, uniform fail-closed suppression, a value-leak in classification
   evidence, crash-resistance on hostile inputs, and a regex ReDoS were all fixed and regression-locked.
 
+[0.1.1]: https://github.com/kyle-chalmers/datawarden/releases/tag/v0.1.1
 [0.1.0]: https://github.com/kyle-chalmers/datawarden/releases/tag/v0.1.0

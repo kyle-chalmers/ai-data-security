@@ -1,0 +1,20 @@
+# DataWarden's own repo, audited by DataWarden. Every entry below was reviewed and is benign:
+# a PII-detection tool necessarily contains fake, example, and famous-fake PII-shaped strings in
+# its docs, tests, and fixtures. Suppressed findings still appear in the report's Suppressed
+# appendix — nothing is hidden. No expiry: the repo will always contain example PII by nature.
+# Reasons intentionally avoid quoting the literal fake values (else this file would flag itself).
+# Format: <fingerprint> reason=<text>
+
+# Documentation that quotes fake identifiers to explain the framework/fixture doctrine:
+DC-01:CONTRIBUTING.md:Restricted reason=Prose quotes a famous-fake SSN while documenting the fixture doctrine — not real data.
+DC-02:reference/four-tier-framework.md:Confidential reason=Example email address used to illustrate the classification framework — not real data.
+
+# Test code whose literals are the detector's own needles (fake SSNs/PANs/emails by design):
+DC-01:tests/run-fixture-checks.sh:Restricted reason=Assertion patterns include fake SSN/PAN/email literals used to prove the detectors fire — not real data.
+DC-01:tests/test_matchers.py:Restricted reason=Unit-test literals (a famous-fake SSN and example emails) exercising the matchers — not real data.
+
+# Intentional detector fixtures (the canonical "what sensitive data looks like" samples):
+DC-01:tests/fixtures/classify-repo/accounts.csv:Restricted reason=Intentional fixture — famous-fake SSNs and Luhn-valid test card numbers, not real data.
+DC-02:tests/fixtures/classify-repo/customers.csv:Confidential reason=Intentional fixture — example-domain email addresses, not real data.
+DC-02:tests/fixtures/make-secrets-repo.sh:Confidential reason=Fixture generator; contains an invalid example address, not real data.
+DC-02:tests/fixtures/snowflake/ai_principals.txt:Confidential reason=Recorded Snowflake fixture; the login is an invented example placeholder, not real data.

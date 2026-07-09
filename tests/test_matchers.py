@@ -75,9 +75,30 @@ for addr in ("a@example.com", "john.doe+tag@sub.example.co.uk"):
     if not classify.EMAIL.search(addr):
         failures.append(f"EMAIL regex no longer matches {addr}")
 
+# Filename-heuristic precision: the word "secret"/"payment"/"user" in a SOURCE filename must not
+# floor it by name alone (content still decides); genuine data/config files still floor by name.
+with tempfile.TemporaryDirectory() as tmp:
+    def floor_of(name, body="nothing sensitive here\n"):
+        p = os.path.join(tmp, name)
+        with open(p, "w", encoding="utf-8") as fh:
+            fh.write(body)
+        return classify.classify_file(p, name)["floor"]
+
+    if floor_of("eval_secrets.py") != "Internal":
+        failures.append("source file eval_secrets.py floored above Internal by filename alone")
+    if floor_of("payment_service.go") != "Internal":
+        failures.append("source file payment_service.go floored by filename alone")
+    if floor_of("credentials.json") != "Restricted":
+        failures.append("data file credentials.json no longer floors Restricted by name")
+    if floor_of(".env") != "Restricted":
+        failures.append(".env no longer floors Restricted by name")
+    # content still wins inside source: a real SSN in a .py is Restricted regardless of name
+    if floor_of("helper.py", "user record ssn 078-05-1120\n") != "Restricted":
+        failures.append("content SSN in a .py was not caught (extension skip over-applied)")
+
 if failures:
     print("MATCHER TESTS: FAIL")
     for f in failures:
         print("  " + f)
     sys.exit(1)
-print(f"MATCHER TESTS: PASS ({len(CASES)} glob cases + expiry fail-closed x4 + ReDoS guard)")
+print(f"MATCHER TESTS: PASS ({len(CASES)} glob cases + expiry fail-closed x4 + ReDoS guard + filename precision)")
