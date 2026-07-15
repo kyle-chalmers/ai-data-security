@@ -60,8 +60,10 @@ mkdir -p "$OUT"
 for f in "$PACK"/*.sql; do
   name="$(basename "$f" .sql)"
   # default_transaction_read_only=on enforces the pack's read-only promise at the session level.
+  # org_* are the no-op defaults; an org profile (reference/org-config.md) swaps in real tokens.
   docker exec -i -e PGOPTIONS="-c default_transaction_read_only=on" "$NAME" \
-    psql -U postgres -d postgres --csv -q -v ON_ERROR_STOP=1 -v ai_role='ai_agent' -f - \
+    psql -U postgres -d postgres --csv -q -v ON_ERROR_STOP=1 -v ai_role='ai_agent' \
+    -v org_restricted='(^|_)(__none__)(_|$)' -v org_confidential='(^|_)(__none__)(_|$)' -f - \
     < "$f" > "$OUT/$name.csv"
   echo "ran $name.sql -> $(wc -l < "$OUT/$name.csv") lines"
 done
@@ -101,6 +103,8 @@ assert "DB-03 HIGH: restricted columns ssn + card_number exposed" \
   '.findings | any(.check_id == "DB-03" and .severity == "HIGH" and (.evidence | test("ssn")) and (.evidence | test("card_number")))'
 assert "DB-03 MEDIUM: confidential columns (email, full_name) exposed" \
   '.findings | any(.check_id == "DB-03" and .severity == "MEDIUM" and (.evidence | test("email")))'
+assert "token-boundary patterns: prefixed member_ssn caught, emailed_at not" \
+  '(.findings | any(.check_id == "DB-03" and (.evidence | test("member_ssn")))) and ([tostring | test("emailed_at")] == [false])'
 assert "DB-04: no masked-view layer" '.findings | any(.check_id == "DB-04")'
 assert "DB-05: no audit logging" '.findings | any(.check_id == "DB-05")'
 assert "no row data in output (fixture has no data, and no SELECT * anywhere)" \

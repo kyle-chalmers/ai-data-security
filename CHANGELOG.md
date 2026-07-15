@@ -3,6 +3,44 @@
 All notable changes to AI Data Security are documented here. This project follows
 [Semantic Versioning](https://semver.org). Dates are ISO-8601.
 
+## [0.2.0] — 2026-07-15
+
+The adaptability release: the audit learns an organization's vocabulary without giving up a
+single v1 invariant — scripts still decide, extensions only ever add detection, unverifiable
+states still fail closed, and a repo with no config behaves byte-identically to v0.1.x.
+
+### Added
+- **Org profile** — an optional `.ai-data-security.yml` at the audited repo's root
+  (JSON-formatted, stdlib-parsed; see `reference/org-config.md`): org-specific PII filename and
+  column tokens at either floor, warehouse argument defaults for db-access-audit, and org
+  citations appended to matching findings. Extends-only by construction (tokens are validated
+  identifiers, so a config line can never inject regex syntax or relax a builtin); a
+  present-but-unparseable profile surfaces as a DC-03/DB-06 UNKNOWN — never silently ignored.
+- **Snowflake verdicts are script-computed.** `eval_grants.py --dialect snowflake` parses the
+  recorded `snow sql` outputs (the same files `--recorded` air-gapped runs use) and computes
+  DB-01..DB-05 mechanically — closing the one place where v1 asked the model to apply
+  reference.md's interpretation table "mentally". DB-05 stays capped at `probable` (partly
+  organizational); malformed recorded output fails closed to DB-06.
+- **Marketplace `renames` map** (`datawarden` → `ai-data-security`) so installs under the old
+  name migrate instead of breaking (Claude Code ≥ 2.1.193).
+- **System-evolution retro** at the end of `/security-audit`: when the audit missed or
+  over-flagged, fix the layer — org profile, ignore file, worker skill, or evaluator pattern —
+  and file plugin gaps against the plugin repo.
+
+### Changed
+- **PII column patterns now match at token boundaries** across `classify_hints.py`, both SQL
+  packs, and the four-tier framework: `member_ssn`, `customer_email`, and `email_address`
+  match; `emailed_at` does not. The anchored `^…$` patterns missed every prefixed real-world
+  column name. The SQL packs also accept `org_restricted`/`org_confidential` regex variables
+  (no-op default `(^|_)(__none__)(_|$)`).
+- Evaluator tool versions: `classify_hints` and `eval_grants` 1 → 2 (reports show which
+  behavior produced a verdict).
+
+### Deferred (noted for a future release)
+- Skill trigger evals (skill-creator description-tuning); submission to
+  `claude-plugins-community`; the v2 enforcement hooks and safe-db-access IMPLEMENT recipe
+  already on the roadmap.
+
 ## [0.1.2] — 2026-07-09
 
 ### Changed

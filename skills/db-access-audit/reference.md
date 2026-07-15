@@ -31,8 +31,12 @@ Run each file with the user's pre-authenticated CLI connection:
 snow sql -c <connection-name> -f "${CLAUDE_PLUGIN_ROOT}/skills/db-access-audit/sql/snowflake/<file>.sql" > <tmp>/<file>.txt
 ```
 
-Substitute `&role` / `&db` placeholders via `snow sql`'s `-D` defines where a file documents
-them. Interpretation rules, mapping captured output to checks:
+Substitute `&role` / `&db` (and pii_columns.sql's `&org_restricted` / `&org_confidential`)
+placeholders via `snow sql`'s `-D` defines where a file documents them.
+
+The interpretation rules below are **computed by `eval_grants.py --dialect snowflake`** from
+the captured outputs (scripts decide, the model narrates); they are documented here so a
+human can verify what the script asserts:
 
 | File | Look for | Check |
 |---|---|---|

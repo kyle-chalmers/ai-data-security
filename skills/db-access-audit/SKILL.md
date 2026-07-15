@@ -28,8 +28,13 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
 
 1. **Parse arguments** from `$ARGUMENTS`: `--dialect` (postgres|snowflake), `--connection`
    (psql conninfo/URL or snow connection name), `--role` (the AI principal to analyze),
-   optional `--confirm`, optional `--recorded <dir>`. Ask for whatever is missing. If the user
-   doesn't know the AI role, offer to run only `ai_principals.sql` first so they can identify it.
+   optional `--confirm`, optional `--recorded <dir>`. If a `.ai-data-security.yml` org profile
+   exists at the project root ([org-config.md](${CLAUDE_PLUGIN_ROOT}/reference/org-config.md)),
+   its `warehouse` block supplies defaults for missing arguments (explicit arguments win) and
+   its `classification.column_*` tokens become the pack's `org_restricted`/`org_confidential`
+   regexes — token lists compile to `(^|_)(tok1|tok2)(_|$)`; use `(^|_)(__none__)(_|$)` when
+   unset. Ask for whatever is still missing. If the user doesn't know the AI role, offer to run
+   only `ai_principals.sql` first so they can identify it.
 
    **`--recorded <dir>` = air-gapped mode**: instead of connecting, read previously captured
    query outputs from `<dir>` (one file per pack query: `grants.csv`/`.txt`, `pii_columns.*`,
@@ -52,26 +57,29 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
 
 3. **Run the pack** (outputs into a `mktemp -d` dir):
    - **postgres** — for each pack file:
-     `PGOPTIONS='-c default_transaction_read_only=on' psql "<connection>" --csv -q -v ON_ERROR_STOP=1 -v ai_role='<role>' -f <file> > <tmp>/<name>.csv`
-   - **snowflake** — see [reference.md](reference.md) for the per-file `snow sql` invocations and
-     output capture; Snowflake support is fixture-validated (no live CI account) — say so in the
-     report header.
+     `PGOPTIONS='-c default_transaction_read_only=on' psql "<connection>" --csv -q -v ON_ERROR_STOP=1 -v ai_role='<role>' -v org_restricted='<regex>' -v org_confidential='<regex>' -f <file> > <tmp>/<name>.csv`
+   - **snowflake** — see [reference.md](reference.md) for the per-file `snow sql` invocations
+     (pii_columns.sql additionally takes `-D "org_restricted=..."` / `-D "org_confidential=..."`)
+     and output capture; Snowflake support is fixture-validated (no live CI account) — say so in
+     the report header.
 
    Any query failure → that section is `DB-06` UNKNOWN (fail-closed, never a pass), keep going
    with the rest.
 
-4. **Compute verdicts** (postgres):
+4. **Compute verdicts** (both dialects — the script decides, you narrate):
    ```
    python3 "${CLAUDE_PLUGIN_ROOT}/skills/db-access-audit/scripts/eval_grants.py" \
-     --grants <tmp>/grants.csv --pii <tmp>/pii_columns.csv \
-     --views <tmp>/masked_views.csv --settings <tmp>/audit_logging.csv \
+     --dialect <postgres|snowflake> \
+     --grants <tmp>/grants.<csv|txt> --pii <tmp>/pii_columns.<csv|txt> \
+     --views <tmp>/masked_views.<csv|txt> --settings <tmp>/audit_logging.<csv|txt> \
      --role <role> [--principal-confirmed] --ignore-dir <dir>
    ```
-   `--ignore-dir` locates the `.ai-data-security-ignore` to honor: the current project root for live
-   runs, or the `--recorded` directory in air-gapped mode.
-   Pass `--principal-confirmed` ONLY if step 2(b) was confirmed — otherwise verdicts cap at
-   MEDIUM/possible by design. For snowflake, apply the interpretation rules in reference.md to
-   the captured outputs, mapping to the same DB-01..DB-06 checks and the same confidence cap.
+   For snowflake, pass the captured `snow sql` output files as-is — the script parses the
+   ASCII tables and applies the reference.md interpretation rules mechanically. `--ignore-dir`
+   locates the `.ai-data-security-ignore` to honor (and auto-discovers the org profile next to
+   it): the current project root for live runs, or the `--recorded` directory in air-gapped
+   mode. Pass `--principal-confirmed` ONLY if step 2(b) was confirmed — otherwise verdicts cap
+   at MEDIUM/possible by design.
 
 5. **Render the report** per finding-format.md. Frame remediation around the target state:
    dedicated read-only AI role → SELECT only on a curated schema of masked views → salted

@@ -47,13 +47,51 @@ NAME_HEURISTIC_SKIP_EXT = {
     ".css", ".scss", ".ipynb",
 }
 
+# Token-boundary matches (underscore/space-delimited), mirroring the SQL packs:
+# `member_ssn`, `customer_email`, `email_address` match; `emailed_at` does not —
+# `email` there is not a whole token. Anchored `^...$` missed every prefixed
+# real-world name (customer_email, borrower_dob).
 COLUMN_PATTERNS = [
-    (re.compile(r"(?i)^(ssn|social_security(_number)?|tax_id|national_id|passport(_number)?)$"), "Restricted"),
-    (re.compile(r"(?i)^(card_number|pan|cvv|account_number|routing_number)$"), "Restricted"),
-    (re.compile(r"(?i)^(dob|birth_date|date_of_birth|diagnosis|medical[_a-z0-9]*)$"), "Restricted"),
-    (re.compile(r"(?i)^(email|phone|mobile|address|first_name|last_name|full_name|ip_address)$"), "Confidential"),
-    (re.compile(r"(?i)^(salary|income|compensation)$"), "Confidential"),
+    (re.compile(r"(?i)(^|[_ ])(ssn|social_security(_number)?|tax_id|national_id|passport(_number)?)([_ ]|$)"), "Restricted"),
+    (re.compile(r"(?i)(^|[_ ])(card_number|pan|cvv|account_number|routing_number)([_ ]|$)"), "Restricted"),
+    (re.compile(r"(?i)(^|[_ ])(dob|birth_date|date_of_birth|diagnosis|medical)([_ ]|$)"), "Restricted"),
+    (re.compile(r"(?i)(^|[_ ])(email|phone|mobile|address|first_name|last_name|full_name|ip_address)([_ ]|$)"), "Confidential"),
+    (re.compile(r"(?i)(^|[_ ])(salary|income|compensation)([_ ]|$)"), "Confidential"),
 ]
+
+# Org-profile tokens must be identifier-safe before they're compiled into a pattern —
+# never let a config line inject regex syntax into the matcher.
+ORG_TOKEN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def org_column_pattern(tokens):
+    safe = [re.escape(t) for t in tokens if isinstance(t, str) and ORG_TOKEN.match(t)]
+    if not safe:
+        return None
+    return re.compile(r"(?i)(^|[_ ])(" + "|".join(safe) + r")([_ ]|$)")
+
+
+def org_filename_pattern(tokens):
+    safe = [re.escape(t) for t in tokens if isinstance(t, str) and ORG_TOKEN.match(t)]
+    if not safe:
+        return None
+    return re.compile(r"(?i)(" + "|".join(safe) + r")")
+
+
+def load_org_config(path):
+    """Read the optional org profile (.ai-data-security.yml, JSON-formatted — see
+    reference/org-config.md). Returns (config-or-None, error-or-None); a
+    present-but-unparseable file must surface as a DC-03 unknown, never a silent skip."""
+    if not path or not os.path.exists(path):
+        return None, None
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return None, "top-level value is not an object"
+        return data, None
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError) as e:
+        return None, str(e)
 
 # Domain labels are dot-free (no overlap with the '.' separator) so this is linear, not
 # quadratic — a catastrophic-backtracking (ReDoS) hazard the '[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
@@ -155,7 +193,7 @@ def classify_file(path, relpath):
             if not (len(col) <= 64 and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_ ]*", col)):
                 continue
             for pattern, tier in COLUMN_PATTERNS:
-                if pattern.match(col):
+                if pattern.search(col):
                     pii_columns.append(col)
                     raise_floor(tier)
                     break
@@ -265,12 +303,43 @@ def build_findings(files, citations, checks):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", required=True)
+    parser.add_argument("--org-config", help="path to an org profile (.ai-data-security.yml); "
+                        "defaults to the one at the target root when present")
     parser.add_argument("--emit-json", help="write JSON here instead of stdout")
     args = parser.parse_args()
     target = os.path.abspath(args.target)
     citations, checks = load_registry()
 
     files, unknowns = [], []
+
+    # Org profile: may only ADD detection (extra filename/column tokens, extra citations) —
+    # it can never relax a builtin pattern or lower a floor.
+    org_path = args.org_config or os.path.join(target, ".ai-data-security.yml")
+    org, org_err = load_org_config(org_path if args.org_config or os.path.exists(org_path) else None)
+    if org_err:
+        unknowns.append({
+            "check_id": "DC-03",
+            "reason": f"org profile '{org_path}' present but unparseable ({org_err}) — "
+                      "org extensions were NOT applied.",
+            "action": "Fix the file (JSON-formatted; see reference/org-config.md) and re-run.",
+        })
+    org_citations = []
+    if org:
+        cls = org.get("classification", {})
+        if isinstance(cls, dict):
+            for key, tier, builder in (
+                ("filename_restricted", "Restricted", org_filename_pattern),
+                ("filename_confidential", "Confidential", org_filename_pattern),
+                ("column_restricted", "Restricted", org_column_pattern),
+                ("column_confidential", "Confidential", org_column_pattern),
+            ):
+                pattern = builder(cls.get(key, []) or [])
+                if pattern:
+                    (FILENAME_PATTERNS if key.startswith("filename") else COLUMN_PATTERNS).append(
+                        (pattern, tier)
+                    )
+        org_citations = [e for e in org.get("citations", [])
+                         if isinstance(e, dict) and e.get("display")]
 
     def on_walk_error(err):
         # A directory that cannot be listed/traversed (e.g. chmod 000) is otherwise dropped
@@ -303,6 +372,11 @@ def main():
                 files.append(entry)
 
     findings = build_findings(files, citations, checks)
+    for entry in org_citations:
+        applies = entry.get("checks")
+        for f in findings:
+            if applies is None or f["check_id"] in applies:
+                f["citations"].append(str(entry["display"]))
     suppressions = load_suppressions(target)
     active, suppressed = [], []
     for f in findings:
@@ -324,7 +398,7 @@ def main():
         "schema_version": SCHEMA_VERSION,
         "skill": "data-classification",
         "target": target,
-        "tools": {"classify_hints": "1"},
+        "tools": {"classify_hints": "2"},
         "files": files,
         "findings": active,
         "unknowns": unknowns,

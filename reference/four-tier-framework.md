@@ -35,13 +35,21 @@ levels; the Public tier operationalizes its Section 3 discussion of PII already 
 
 ### Column-name patterns
 
-| Pattern | Floor |
+Tokens match at underscore/space boundaries, not whole names only: `member_ssn`,
+`customer_email`, and `email_address` all match; `emailed_at` does not (`email` is not a
+whole token there). Anchored whole-name matching missed every prefixed real-world column.
+
+| Token | Floor |
 |---|---|
 | `ssn`, `social_security`, `tax_id`, `national_id`, `passport` | Restricted |
 | `card_number`, `pan`, `cvv`, `account_number`, `routing_number` | Restricted |
-| `dob`, `birth_date`, `date_of_birth`, `medical*`, `diagnosis` | Restricted |
+| `dob`, `birth_date`, `date_of_birth`, `medical`, `diagnosis` | Restricted |
 | `email`, `phone`, `mobile`, `address`, `first_name`, `last_name`, `full_name`, `ip_address` | Confidential |
 | `salary`, `income`, `compensation` | Confidential |
+
+An org profile (`.ai-data-security.yml`, see [org-config.md](org-config.md)) may **add**
+org-specific filename and column tokens at either floor; it can never remove a builtin
+token or lower a floor.
 
 ### Content validators (upgrade confidence, never downgrade)
 

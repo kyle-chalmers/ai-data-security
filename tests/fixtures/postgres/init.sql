@@ -11,6 +11,9 @@ CREATE TABLE app.customers (
     email        text,
     ssn          text,
     card_number  text,
+    member_ssn   text,        -- token-boundary match: prefixed Restricted name
+    customer_email text,      -- token-boundary match: prefixed Confidential name
+    emailed_at   timestamptz, -- must NOT match: 'email' is not a whole token here
     balance      numeric(12, 2)
 );
 

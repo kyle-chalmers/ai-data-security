@@ -225,6 +225,57 @@ python3 skills/db-access-audit/scripts/eval_grants.py \
 assert "DB-04 suppressed into appendix; other findings intact" \
   '(.findings | map(.check_id) | index("DB-04")) == null and (.suppressed | length == 1) and (.findings | length >= 3)'
 
+step "db-access-audit snowflake pack: script-computed verdicts match expected_findings.md"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect snowflake \
+  --grants tests/fixtures/snowflake/grants.txt --pii tests/fixtures/snowflake/pii_columns.txt \
+  --views tests/fixtures/snowflake/masked_views.txt --settings tests/fixtures/snowflake/audit_logging.txt \
+  --role AI_AGENT --principal-confirmed --emit-json "$TMP/out.json"
+assert "DB-01 CRITICAL: INSERT/UPDATE on ANALYTICS.APP.CUSTOMERS" \
+  '.findings | any(.check_id == "DB-01" and .severity == "CRITICAL" and (.evidence | test("ANALYTICS.APP.CUSTOMERS:INSERT")))'
+assert "DB-02 HIGH: SELECT on base tables CUSTOMERS + ORDERS" \
+  '.findings | any(.check_id == "DB-02" and .severity == "HIGH" and (.evidence | test("CUSTOMERS")) and (.evidence | test("ORDERS")))'
+assert "DB-03 HIGH: Restricted SSN + CARD_NUMBER exposed" \
+  '.findings | any(.check_id == "DB-03" and .severity == "HIGH" and (.evidence | test("SSN")) and (.evidence | test("CARD_NUMBER")))'
+assert "DB-03 MEDIUM: Confidential EMAIL + FULL_NAME exposed" \
+  '.findings | any(.check_id == "DB-03" and .severity == "MEDIUM" and (.evidence | test("EMAIL")) and (.evidence | test("FULL_NAME")))'
+assert "DB-04: zero masking policies and zero views" '.findings | any(.check_id == "DB-04")'
+assert "DB-05: probable at best (partly organizational)" \
+  '.findings | any(.check_id == "DB-05" and .confidence == "probable" and .severity == "MEDIUM")'
+assert "snowflake dialect recorded in tools" '.tools.dialect == "snowflake"'
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect snowflake \
+  --grants tests/fixtures/snowflake/grants.txt --pii tests/fixtures/snowflake/pii_columns.txt \
+  --views tests/fixtures/snowflake/masked_views.txt --settings tests/fixtures/snowflake/audit_logging.txt \
+  --role AI_AGENT --emit-json "$TMP/out.json"
+assert "unconfirmed principal: severities capped at MEDIUM + DB-06 says why" \
+  '([.findings[] | .severity == "MEDIUM" or .severity == "LOW" or .severity == "INFO"] | all) and (.unknowns | any(.check_id == "DB-06"))'
+printf -- '-- truncated garbage, no table\n' > "$TMP/garbage.txt"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect snowflake \
+  --grants "$TMP/garbage.txt" --pii tests/fixtures/snowflake/pii_columns.txt \
+  --views tests/fixtures/snowflake/masked_views.txt --settings tests/fixtures/snowflake/audit_logging.txt \
+  --role AI_AGENT --principal-confirmed --emit-json "$TMP/out.json"
+assert "unparseable recorded output fails closed to DB-06 (no DB-01/DB-02 claimed)" \
+  '(.unknowns | any(.check_id == "DB-06" and (.reason | test("grants")))) and ([.findings[] | .check_id] | index("DB-01") == null)'
+
+step "org profile (.ai-data-security.yml): extends-only, fail-closed"
+ORG="$TMP/org-repo"; mkdir -p "$ORG"
+printf 'payoff_uid,widget\n1,2\n' > "$ORG/loan_tape_q2.csv"
+printf 'member_ssn,customer_email,emailed_at\nx,y,z\n' > "$ORG/export.csv"
+python3 skills/data-classification/scripts/classify_hints.py --target "$ORG" --emit-json "$TMP/out.json"
+assert "token-boundary: member_ssn + customer_email caught, emailed_at not" \
+  '(.files[] | select(.path == "export.csv") | .pii_columns) == ["member_ssn", "customer_email"]'
+assert "without org profile, org-only names are not flagged" \
+  '.files[] | select(.path == "loan_tape_q2.csv") | .pii_columns == []'
+printf '{"classification": {"column_restricted": ["payoff_uid"], "filename_restricted": ["loan_tape"]}, "citations": [{"display": "Org Policy Fixture", "checks": ["DC-01"]}]}\n' > "$ORG/.ai-data-security.yml"
+python3 skills/data-classification/scripts/classify_hints.py --target "$ORG" --emit-json "$TMP/out.json"
+assert "org tokens raise the floor and appear in evidence" \
+  '.files[] | select(.path == "loan_tape_q2.csv") | (.floor == "Restricted") and (.pii_columns | index("payoff_uid") != null)'
+assert "org citation appended to matching findings only" \
+  '[.findings[] | select(.check_id == "DC-01") | .citations | index("Org Policy Fixture") != null] | all and length > 0'
+printf 'not json {{{\n' > "$ORG/.ai-data-security.yml"
+python3 skills/data-classification/scripts/classify_hints.py --target "$ORG" --emit-json "$TMP/out.json"
+assert "unparseable org profile -> DC-03 unknown, extensions not applied" \
+  '(.unknowns | any(.check_id == "DC-03" and (.reason | test("org profile")))) and ((.files[] | select(.path == "loan_tape_q2.csv") | .floor) == "Internal")'
+
 step "edge hardening: crash-resistance + value-leak regressions (from the bug hunt)"
 CLASSIFY_S="skills/data-classification/scripts/classify_hints.py"
 PERMEVAL_S="skills/ai-config-audit/scripts/permeval.py"

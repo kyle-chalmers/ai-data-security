@@ -28,6 +28,9 @@ instructions.
    **floor tier**, confidence), plus the source-of-truth `findings` (DC-01/DC-02, suppression
    already applied from `.ai-data-security-ignore`), `unknowns` (DC-03 — one per unreadable file;
    an unreadable file is never a pass and never silently omitted), and `suppressed`.
+   An org profile at `<target>/.ai-data-security.yml`
+   ([org-config.md](${CLAUDE_PLUGIN_ROOT}/reference/org-config.md)) is applied automatically:
+   extra org tokens and citations, extends-only, fail-closed if unparseable.
 
 3. **Assign final tiers.** The floor is binding upward-only:
    - You may RAISE a tier based on context the script can't see (e.g. a `notes.md` describing

@@ -70,6 +70,23 @@ Every finding cites a recognized standard. IMPLEMENT flows (human-gated fixes) a
 - Presidio deep tier, notebook scanning, MCP deep audit (recommended external tools instead).
 - Marketplace/public submission — gated on explicit maintainer approval.
 
+## v0.2 additions (slice 7 — 2026-07)
+
+Three enhancements, all preserving the v1 invariants (scripts decide / model narrates,
+extends-only customization, fail-closed unknowns, stdlib-only, zero-config byte-identical):
+
+1. **Org profile** — optional `.ai-data-security.yml` at the audited repo's root
+   (`reference/org-config.md`): org PII filename/column tokens, warehouse argument
+   defaults, appended org citations. Never removes/weakens detection; unparseable →
+   DC-03/DB-06 UNKNOWN.
+2. **Token-boundary PII patterns** — column patterns match at underscore/space token
+   boundaries (`member_ssn`, `customer_email` match; `emailed_at` does not) across
+   classify_hints, both SQL packs, and the framework doc. Anchored `^...$` missed every
+   prefixed real-world name.
+3. **Snowflake script-backing** — `eval_grants.py --dialect snowflake` parses recorded
+   `snow sql` outputs and computes DB-01..DB-05, closing the one place where the model
+   interpreted verdicts "mentally" (reference.md rules now document what the script does).
+
 ## Verification
 
 - Each slice in `dev/feature_list.json` has a runnable check; `dev/validate.sh` is the always-runnable

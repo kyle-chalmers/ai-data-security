@@ -1,5 +1,7 @@
 table_schema,table_name,column_name,data_type,tier_floor
 app,customers,card_number,text,Restricted
+app,customers,customer_email,text,Confidential
 app,customers,email,text,Confidential
 app,customers,full_name,text,Confidential
+app,customers,member_ssn,text,Restricted
 app,customers,ssn,text,Restricted

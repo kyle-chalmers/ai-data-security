@@ -1,5 +1,5 @@
 {
-  "$comment": "IMMUTABLE feature list for the ai-data-security v1 build (see SPEC.md). Do not add, remove, reword, or reorder features. The ONLY field a work session may change is `passes` (false -> true, after the check is demonstrated, never asserted). Log evidence in dev/progress.txt.",
+  "$comment": "IMMUTABLE feature list (see SPEC.md). The v1 entries (S0-S6) and any released slice may never be reworded or reordered; a new SPEC.md slice may APPEND entries (S7+ added for v0.2). The ONLY field a work session may change is `passes` (false -> true, after the check is demonstrated, never asserted). Log evidence in dev/progress.txt.",
   "features": [
     {
       "id": "S0.1-plugin-validates",
@@ -83,6 +83,27 @@
       "slice": "6",
       "description": "README/SECURITY/CONTRIBUTING complete; real install path works; repo provably clean",
       "check": "claude plugin marketplace add kyle-chalmers/ai-data-security && claude plugin install ai-data-security@ai-data-security succeeds from a clean checkout; gitleaks tree+history self-scan clean; CI green",
+      "passes": true
+    },
+    {
+      "id": "S7.1-org-profile",
+      "slice": "7",
+      "description": "Optional .ai-data-security.yml org profile: extends-only tokens/defaults/citations, fail-closed when unparseable, zero-config behavior unchanged",
+      "check": "run-fixture-checks.sh 'org profile' step green: org tokens raise floors and appear in evidence, org citations append to matching checks only, unparseable profile -> DC-03 with extensions NOT applied, and org-only names are NOT flagged without the profile",
+      "passes": true
+    },
+    {
+      "id": "S7.2-token-boundary-pii",
+      "slice": "7",
+      "description": "PII column patterns match at token boundaries in classify_hints and both SQL packs (member_ssn/customer_email match; emailed_at does not)",
+      "check": "run-fixture-checks.sh token-boundary assertion green; postgres fixture gains member_ssn/customer_email/emailed_at with a hand-verified golden pii_columns.csv, diffed live by the docker pack in CI (tests/postgres-fixture-check.sh)",
+      "passes": true
+    },
+    {
+      "id": "S7.3-snowflake-script-backed",
+      "slice": "7",
+      "description": "eval_grants.py --dialect snowflake parses recorded snow-sql outputs and computes DB-01..DB-05 deterministically (scripts decide, model narrates, both dialects)",
+      "check": "run-fixture-checks.sh snowflake step green: verdicts match tests/fixtures/snowflake/expected_findings.md exactly (incl. DB-05 probable cap), unconfirmed principal caps at MEDIUM + DB-06, garbage recorded output fails closed to DB-06",
       "passes": true
     }
   ]
