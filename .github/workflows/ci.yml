@@ -33,5 +33,26 @@ jobs:
       - name: Self-scan — working tree
         run: gitleaks dir --no-banner --redact .
 
+      # dev/validate.sh runs "claude plugin validate" but skipped it whenever the CLI was
+      # absent — and this workflow never installed it, so the plugin gate had never actually
+      # run in CI. validate.sh now hard-fails on a missing CLI when CI is set, which makes
+      # this step load-bearing rather than decorative.
+      # Pinned like gitleaks above, and for the same reason: this workflow executes the
+      # package (and its lifecycle scripts) inside a security plugin's own CI. An unpinned
+      # "npm install -g" would let an upstream release change what runs here without review.
+      - name: Install Claude Code CLI 2.1.258 (pinned)
+        run: |
+          npm install -g @anthropic-ai/claude-code@2.1.258
+          installed="$(claude --version)"
+          case "$installed" in
+            2.1.258*) echo "claude $installed" ;;
+            *) echo "::error::Expected claude 2.1.258, got '$installed'"; exit 1 ;;
+          esac
+
       - name: Baseline validation (structure, shellcheck, SQL lint, fixture checks)
+        env:
+          # Turns dev/validate.sh's plugin gate from skip-if-absent into a hard requirement.
+          # Not inferred from $CI: that is set to the literal string "false" in some contexts,
+          # which a [ -n ] test would read as true and block local work.
+          ADS_REQUIRE_PLUGIN_GATE: "1"
         run: ./dev/validate.sh

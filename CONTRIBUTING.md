@@ -42,8 +42,11 @@ The `version` field is intentionally absent while pre-release (git-SHA versionin
 release requires the maintainer's explicit approval — this repo does not publish or submit to
 any marketplace without it — and this checklist:
 
-1. Add synced semver to plugin.json + CHANGELOG; switch `dev/validate.sh` to
-   `claude plugin validate . --strict`.
+1. Add synced semver to plugin.json + CHANGELOG. (`dev/validate.sh` already validates both
+   manifests explicitly — do NOT switch it to `claude plugin validate . --strict`. A root
+   target resolves to `marketplace.json` in preference to `plugin.json` and never reads
+   skills, so that form passes even with a garbage `SKILL.md`. There is no flag to force
+   plugin mode.)
 2. Remove the README "While this repo is private" install note (it documents a private-phase
    workaround only).
 3. Enable GitHub private vulnerability reporting on the repo (SECURITY.md points there).
