@@ -1,0 +1,36 @@
+# FIXTURE — MCP Toolbox for Databases tools.yaml. Two tool statements write (a DELETE and a data-modifying CTE): AC-10.
+# One statement the static matcher cannot classify -> AC-10 UNKNOWN. A commented SELECT stays a read.
+sources:
+  analytics-pg:
+    kind: postgres
+    host: db.example.invalid
+    port: 5432
+    database: analytics
+    user: ${PG_USER}
+    password: ${PG_PASSWORD}
+tools:
+  churn-by-city:
+    kind: postgres-sql
+    source: analytics-pg
+    description: Churn rate by city from the curated view.
+    statement: SELECT city, churn_rate FROM curated.customer_masked WHERE acquired_at > NOW() - INTERVAL '90 days'
+  purge-test-rows:
+    kind: postgres-sql
+    source: analytics-pg
+    description: Remove synthetic rows.
+    statement: DELETE FROM app.customers WHERE is_test = true
+  archive-rows:
+    kind: postgres-sql
+    source: analytics-pg
+    description: Looks like a SELECT, deletes inside the CTE.
+    statement: WITH moved AS (DELETE FROM app.events WHERE occurred_at < NOW() - INTERVAL '2 years' RETURNING *) SELECT count(*) FROM moved
+  weekly-summary:
+    kind: postgres-sql
+    source: analytics-pg
+    description: Read with a leading comment.
+    statement: "-- weekly rollup\nSELECT week, total FROM curated.weekly_summary"
+  set-path:
+    kind: postgres-sql
+    source: analytics-pg
+    description: Session setting; not a read or a write the matcher knows.
+    statement: SET search_path TO app

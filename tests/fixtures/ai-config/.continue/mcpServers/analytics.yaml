@@ -1,0 +1,12 @@
+# FIXTURE — Continue per-server MCP file (mcpServers is a LIST). Unpinned npx -> AC-09.
+name: Analytics MCP
+version: 0.0.1
+schema: v1
+mcpServers:
+  - name: analytics
+    command: npx
+    args:
+      - -y
+      - "@example/analytics-mcp"
+    env:
+      ANALYTICS_TOKEN: placeholder-not-a-real-value

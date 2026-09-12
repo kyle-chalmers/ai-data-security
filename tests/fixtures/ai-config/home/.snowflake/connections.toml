@@ -1,0 +1,6 @@
+# FIXTURE — Snowflake CLI connections file with a credential-shaped literal (key name only is reported).
+[ai_agent]
+account = "example-account"
+user = "AI_AGENT"
+password = "placeholder-not-a-real-value"
+role = "AI_AGENT"

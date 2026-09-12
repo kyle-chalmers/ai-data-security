@@ -58,6 +58,9 @@ token or lower a floor.
 | SSN format | `\d{3}-\d{2}-\d{4}` with area ∉ {000, 666, 900–999}, group ≠ 00, serial ≠ 0000 | Restricted, confidence `confirmed` |
 | Payment card | 13–19 digits passing Luhn | Restricted, confidence `confirmed` |
 | Email | RFC-lite `local@domain.tld` | Confidential, confidence `confirmed` |
+| IBAN | ISO 13616 shape with a passing mod-97 check | Restricted (a bank account number), confidence `confirmed` |
+| Phone | E.164 (`+` and 8–15 digits) or NANP `(NXX) NXX-XXXX` shape | Confidential, confidence `confirmed` |
+| IPv4 address | dotted quad, each octet 0–255 | Confidential, confidence `confirmed` |
 
 Pattern-only hits (no validated content) stay confidence `probable`; severity capping in
 [finding-format.md](finding-format.md) then applies.

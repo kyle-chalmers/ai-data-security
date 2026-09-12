@@ -3,6 +3,50 @@
 All notable changes to AI Data Security are documented here. This project follows
 [Semantic Versioning](https://semver.org). Dates are ISO-8601.
 
+## [0.5.0] — 2026-09-12
+
+Agent-config depth (ROADMAP v0.5): the config-side checks now cover the seams where 2025–2026
+incidents actually entered (unpinned MCP packages, write-capable warehouse servers, credential
+files outside the repo) and six more agent tools. Plus a new static dbt audit and three more
+content validators. Invariants unchanged; existing findings byte-identical on the same inputs
+(the evaluators' tool versions change, and new checks may add findings).
+
+### Added
+- **AC-08 capability inventory (INFO).** When warehouse-shaped MCP servers and external channels
+  (remote MCP servers, network allow rules) are both configured, one INFO finding lists them and
+  cites OWASP ASI02 and the AI Agent Security Cheat Sheet. It is an inventory, never a detection.
+- **AC-09 MCP server provenance.** `npx` / `uvx` / `bunx` / `pipx run` / `pnpm dlx` packages without
+  an exact pin (`@x.y.z` or `==x.y.z`), `@latest`, and git/URL sources without a full commit SHA
+  (MEDIUM, probable).
+- **AC-10 write-capable warehouse MCP.** Snowflake-Labs/mcp `sql_statement_permissions` (read from
+  the YAML named by `--service-config-file`), Postgres MCP Pro `--access-mode`, Toolbox `tools.yaml`
+  statements (HIGH when writes are enabled, including `Unknown: True` and data-modifying CTEs; tool
+  statements are never echoed); Databricks MCP has no write control (INFO). A config that cannot be
+  found or parsed, a remote Postgres MCP whose mode lives server-side, and a Toolbox statement the
+  matcher cannot classify are each an **UNKNOWN**, never a pass.
+- **AC-11 local sensitive sinks.** DuckDB persistent secrets (`~/.duckdb/stored_secrets`, stored
+  unencrypted), credential-shaped keys with literal values in `~/.snowflake/connections.toml`,
+  `~/.databrickscfg`, `~/.dbt/profiles.yml`, `~/.aws/credentials`, `~/.pgpass` (key names only),
+  and shell history files with no `*_history` deny rule.
+- **Six more agent tools** in the MCP config matrix: VS Code / Copilot `.vscode/mcp.json` (with
+  `headers` scanned by key name), Windsurf, Cline, Roo Code, Continue (`config.yaml` and
+  `.continue/mcpServers/*`), GitHub Copilot CLI, OpenCode (`mcp.servers`; list-form `command`).
+- `scripts/yaml_subset.py`: one shared stdlib YAML-subset reader for every YAML the plugin
+  inspects; unsupported shapes raise, and callers report UNKNOWN.
+- **Content validators**: IBAN (mod-97 → Restricted), phone (E.164 / NANP → Confidential), IPv4
+  (→ Confidential). Counts only.
+- **`/ai-data-security:dbt-governance-audit`**: static audit of a dbt project's YAML (no
+  connection): DBT-01 PII-tagged models consumed by exposures with no masking layer declared,
+  DBT-02 likely-PII columns without a PII tag, DBT-03 UNKNOWN for unparseable files and
+  `depends_on` forms it cannot read, DBT-04 INFO on masking packages. Masking is honored only when
+  declared per model (`meta.masked` and friends) or as a package; a model merely *named* like a
+  masked layer is reported as a hint. Every finding states that a missing tag is not proof of no PII.
+- Citation: MCP Security Best Practices, Local MCP Server Compromise section.
+
+### Changed
+- `permeval` tool version 2 → 3; `classify_hints` 2 → 3. AC-03 now also flags credential-shaped
+  `headers` keys (including `Authorization`) on remote MCP servers.
+
 ## [0.4.0] — 2026-09-12
 
 The decision-quality DB audit (ROADMAP v0.4). DB findings now name a remediable boundary and say
@@ -232,6 +276,7 @@ First public release. Feature-complete v1: audit-only, read-only, every finding 
   hunt): permission-glob precision, uniform fail-closed suppression, a value-leak in classification
   evidence, crash-resistance on hostile inputs, and a regex ReDoS were all fixed and regression-locked.
 
+[0.5.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.5.0
 [0.4.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.4.0
 [0.3.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.3.0
 [0.1.2]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.1.2

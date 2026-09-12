@@ -218,6 +218,20 @@ assert "AC-06: retention always reported UNKNOWN with manual-check action" \
   '.unknowns | any(.check_id == "AC-06" and (.action | test("data-privacy-controls")))'
 assert "AC-07: sandbox not enabled in fixture home -> MEDIUM finding pointing at user settings" \
   '.findings | any(.check_id == "AC-07" and .severity == "MEDIUM" and (.remediation[0] | test("sandbox")))'
+assert "AC-03 via a v0.5 path: VS Code .vscode/mcp.json servers header key flagged by name, value never shown" \
+  '(.findings | any(.check_id == "AC-03" and (.file == ".vscode/mcp.json") and (.evidence | test("headers.Authorization")))) and ([tostring | test("placeholder-not-a-real-value")] == [false])'
+assert "AC-08 INFO: warehouse servers + remote MCP compose; named as inventory, not detection" \
+  '.findings | any(.check_id == "AC-08" and .severity == "INFO" and (.evidence | test("snowflake")) and (.evidence | test("remote MCP")) and (.evidence | test("not a detection")))'
+assert "AC-09 MEDIUM/probable: npx -y unpinned (.mcp.json), uvx unpinned, Continue mcpServers/*.yaml npx; pinned pipx run pkg==x.y.z and OpenCode @2.0.0 are not flagged" \
+  '([.findings[] | select(.check_id == "AC-09")] | length == 3) and ([.findings[] | select(.check_id == "AC-09") | .confidence == "probable"] | all) and (.findings | any(.check_id == "AC-09" and (.file | test("continue/mcpServers")))) and ([.findings[] | select(.check_id == "AC-09" and ((.evidence | test("lineage")) or (.evidence | test("bi-mcp"))))] | length == 0)'
+assert "AC-03 via OpenCode mcp.servers nesting: BI_API_KEY flagged by key name" \
+  '.findings | any(.check_id == "AC-03" and (.file == "opencode.json") and (.evidence | test("BI_API_KEY")))'
+assert "AC-10 HIGH x3: Snowflake sql_statement_permissions (Insert/Delete/Command), Postgres unrestricted, Toolbox DELETE tool" \
+  '([.findings[] | select(.check_id == "AC-10" and .severity == "HIGH")] | length == 3) and (.findings | any(.check_id == "AC-10" and (.evidence | test("Command, Delete, Insert, Unknown")))) and (.findings | any(.check_id == "AC-10" and (.evidence | test("unrestricted")))) and (.findings | any(.check_id == "AC-10" and (.evidence | test("archive-rows, purge-test-rows")) and (.evidence | test("weekly-summary") | not) and (.evidence | test("DELETE") | not)))'
+assert "AC-10 UNKNOWNs: remote Postgres MCP (access mode not local) and one unclassifiable Toolbox statement (set-path)" \
+  '([.unknowns[] | select(.check_id == "AC-10")] | length == 2) and (.unknowns | any(.check_id == "AC-10" and (.reason | test("postgres-mcp-remote")) and (.reason | test("remote")))) and (.unknowns | any(.check_id == "AC-10" and (.reason | test("set-path"))))'
+assert "AC-11: DuckDB persistent secret (HIGH), Snowflake connections.toml password key (HIGH, key name only), shell history (LOW)" \
+  '(.findings | any(.check_id == "AC-11" and .severity == "HIGH" and (.title | test("DuckDB")))) and (.findings | any(.check_id == "AC-11" and .severity == "HIGH" and (.evidence | test("password")) and (.evidence | test("example-account") | not))) and (.findings | any(.check_id == "AC-11" and .severity == "LOW" and (.title | test("history"))))'
 assert "every ai-config finding carries a citation and fingerprint" \
   '[.findings[] | (.citations | length > 0) and (.fingerprint | length > 0)] | all'
 
@@ -236,6 +250,14 @@ python3 "$PERMEVAL" --target tests/fixtures/ai-config-hardened \
   --home "$EMPTYHOME" --emit-json "$TMP/out.json"
 assert "empty home: exactly one finding and it is AC-07" \
   '(.findings | length == 1) and (.findings[0].check_id == "AC-07")'
+
+step "AC-10 fail-closed: missing / hostile Snowflake service config -> UNKNOWN, never a pass"
+BADMCP="$TMP/badmcp"; mkdir -p "$BADMCP/.claude" "$BADMCP/mcp"
+printf '{"mcpServers": {"snowflake": {"command": "uvx", "args": ["snowflake-labs-mcp@1.2.3", "--service-config-file", "./mcp/missing.yaml"]}, "sf2": {"command": "uvx", "args": ["snowflake-labs-mcp@1.2.3", "--service-config-file", "./mcp/hostile.yaml"]}}}\n' > "$BADMCP/.mcp.json"
+printf 'sql_statement_permissions: &anchor\n  - Insert: True\n\t- weird: [unterminated\n' > "$BADMCP/mcp/hostile.yaml"
+python3 "$PERMEVAL" --target "$BADMCP" --home tests/fixtures/ai-config-hardened/home --emit-json "$TMP/out.json"
+assert "missing and unparseable Snowflake configs -> two AC-10 unknowns, zero AC-10 findings, pinned packages -> no AC-09" \
+  '([.unknowns[] | select(.check_id == "AC-10")] | length == 2) and ([.findings[] | select(.check_id == "AC-10" or .check_id == "AC-09")] | length == 0)'
 
 step "AC-07 posture variants: filesystem.disabled re-fires MEDIUM; enabled without failIfUnavailable is INFO"
 FSOFF="$TMP/fs-off-home"; mkdir -p "$FSOFF/.claude"
@@ -260,6 +282,39 @@ CLASSIFY="skills/data-classification/scripts/classify_hints.py"
 
 step "matcher unit tests (permission globs + fail-closed expiry)"
 if ! python3 tests/test_matchers.py; then fail=1; fi
+
+step "fixture classify-validators: phone / IBAN / IPv4 validators (v0.5), no values in output"
+python3 "$CLASSIFY" --target tests/fixtures/classify-validators --emit-json "$TMP/out.json"
+assert "contacts.csv floors to Restricted via 2 mod-97-valid IBANs, confirmed; 2 phones, 2 IPv4" \
+  '.files | any(.path == "contacts.csv" and .floor == "Restricted" and .confidence == "confirmed" and .indicators.iban_valid == 2 and .indicators.phones == 2 and .indicators.ipv4_valid == 2)'
+assert "validator evidence names counts only; no IBAN, phone, or IP value appears" \
+  '(.findings | any(.check_id == "DC-01" and (.evidence | test("mod-97")))) and ([tostring | test("GB82WEST|4155550100|203\\.0\\.113")] == [false])'
+
+DBT="skills/dbt-governance-audit/scripts/dbt_audit.py"
+step "fixture dbt-project: DBT-01 exposures on tagged models, DBT-02 untagged PII columns, DBT-03 UNKNOWN on bad YAML, DBT-04 INFO"
+python3 "$DBT" --target tests/fixtures/dbt-project --emit-json "$TMP/out.json"
+assert "DBT-01 fires for both exposures (application + dashboard) consuming PII-tagged models via versioned / package-qualified refs; MEDIUM/probable" \
+  '([.findings[] | select(.check_id == "DBT-01")] | length == 2) and (.findings | any(.check_id == "DBT-01" and (.title | test("ai_agent_semantic_layer")) and .severity == "MEDIUM" and .confidence == "probable" and (.evidence | test("customer_360")) and (.evidence | test("customer_masked") | not)))'
+assert "explicit meta masking is honored per model; a 'curated' name is only a hint (summary reports both)" \
+  '(.summary.masking_declared_nodes == ["customer_masked"]) and (.summary.masked_name_hints | index("customer_curated")) != null'
+assert "flow-map meta ({contains_pii: true}) and a block-scalar description parse; customer_360 is tagged" \
+  '.summary.pii_tagged_nodes | index("customer_360") != null'
+assert "DBT-02 names customers.ssn (Restricted) and stg_customers.phone_number (Confidential); emailed_at is not matched" \
+  '(.findings | any(.check_id == "DBT-02" and (.evidence | test("customers\\.ssn")) and (.evidence | test("phone_number")) and (.evidence | test("emailed_at") | not)))'
+assert "every DBT finding repeats that a missing tag is not proof of no PII (or is the INFO inventory)" \
+  '[.findings[] | select(.check_id != "DBT-04") | .evidence | test("not proof of no PII")] | all'
+assert "broken.yml -> one DBT-03 UNKNOWN naming the file; no finding derived from it" \
+  '([.unknowns[] | select(.check_id == "DBT-03" and (.reason | test("broken\\.yml")))] | length == 1) and ([.findings[] | select(.file | test("broken"))] | length == 0)'
+assert "unparseable depends_on (ref(var(...))) -> DBT-03 UNKNOWN naming the exposure, not a silent skip" \
+  '.unknowns | any(.check_id == "DBT-03" and (.reason | test("legacy_report")))'
+assert "DBT-04 INFO: no masking package declared" \
+  '.findings | any(.check_id == "DBT-04" and .severity == "INFO" and (.title | test("No masking package")))'
+assert "summary lists tagged nodes and exposures; no column data values exist to leak (declarations only)" \
+  '(.summary.pii_tagged_nodes | index("customer_360")) != null and (.summary.exposures | length == 3)'
+DBTMISS="$TMP/dbtmiss"; mkdir -p "$DBTMISS"
+python3 "$DBT" --target "$DBTMISS" --emit-json "$TMP/out.json"
+assert "no dbt_project.yml -> DBT-03 UNKNOWN, zero findings (fail closed, not a clean report)" \
+  '(.findings | length == 0) and ([.unknowns[] | select(.check_id == "DBT-03")] | length == 1)'
 
 step "fixture classify-repo: deterministic floors, validators, no values in output"
 python3 "$CLASSIFY" --target tests/fixtures/classify-repo --emit-json "$TMP/out.json"

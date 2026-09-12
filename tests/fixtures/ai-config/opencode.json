@@ -1,0 +1,22 @@
+{
+  "$comment": "FIXTURE \u2014 OpenCode config; servers nest at mcp.servers. Credential-shaped env key -> AC-03 (key name only).",
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "bi-legacy": {
+        "type": "local",
+        "command": [
+          "npx",
+          "-y",
+          "@example/bi-mcp@2.0.0"
+        ],
+        "environment": {
+          "BI_API_KEY": "placeholder-not-a-real-value"
+        },
+        "env": {
+          "BI_API_KEY": "placeholder-not-a-real-value"
+        }
+      }
+    }
+  }
+}

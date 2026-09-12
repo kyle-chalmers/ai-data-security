@@ -99,6 +99,66 @@ if desc_a.get("TYPE") != "SERVICE_AGENT" or "ALL" not in desc_a.get("DEFAULT_SEC
 if desc_b.get("TYPE") != "PERSON" or desc_b.get("DEFAULT_SECONDARY_ROLES") != "[]":
     failures.append(f"_desc_user property_value variant: {desc_b}")
 
+# v0.5: provenance pin detection, shared YAML-subset reader, Toolbox statement classes, IBAN mod-97, dbt refs.
+pv = load("permeval_v05", "skills/ai-config-audit/scripts/permeval.py")
+for tokens, expect_flag in [
+    (["npx", "-y", "@example/warehouse-mcp"], True),
+    (["npx", "-y", "@example/warehouse-mcp@1.4.2"], False),
+    (["npx", "@example/warehouse-mcp@^1.4.0"], True),
+    (["uvx", "snowflake-labs-mcp"], True),
+    (["uvx", "snowflake-labs-mcp@2.0.0"], False),
+    (["uvx", "--from", "snowflake-labs-mcp==2.0.0", "mcp-server-snowflake"], False),
+    (["pipx", "run", "example-mcp==1.2.3"], False),
+    (["pipx", "run", "example-mcp"], True),
+    (["npx", "some-pkg@latest"], True),
+    (["pnpm", "dlx", "tool@3.1.0"], False),
+    (["npx", "github:org/repo"], True),
+    (["npx", "git+https://github.com/org/repo.git#main"], True),
+    (["npx", "git+https://github.com/org/repo.git#" + "a" * 40], False),
+    (["node", "server.js"], False),
+    (["uv", "run", "postgres-mcp"], False),          # uv run is a local project, not a fetch
+    ([], False),
+]:
+    got = pv._unpinned(tokens) is not None
+    if got is not expect_flag:
+        failures.append(f"_unpinned({tokens!r}) flagged={got}, expected {expect_flag}")
+for sql, expect in [
+    ("SELECT 1", "read"),
+    ("-- note\nSELECT a FROM t", "read"),
+    ("/* c */ DELETE FROM t", "write"),
+    ("WITH x AS (DELETE FROM t RETURNING *) SELECT count(*) FROM x", "write"),
+    ("WITH x AS (SELECT 1) SELECT * FROM x", "read"),
+    ("SELECT * INTO new_t FROM t", "read"),  # INTO without a write keyword: still a read by the matcher (documented limit)
+    ("SET search_path TO app", "unclassified"),
+    ("", "unclassified"),
+]:
+    got = pv.classify_statement(sql)
+    if got != expect:
+        failures.append(f"classify_statement({sql!r}) = {got}, expected {expect}")
+y = pv.yaml_subset_load("a: 1\nlist:\n  - Insert: True\n  - Select: False\nnested:\n  k: 'v'\n  flow: [x, y]\n  m: {contains_pii: true}\n  d: |\n    line one\n    line two\nvar: ${PG_USER}\n")
+if not (y.get("a") == "1" and y["list"][0] == {"Insert": True} and y["nested"]["k"] == "v" and y["nested"]["flow"] == ["x", "y"]
+        and y["nested"]["m"] == {"contains_pii": True} and "line two" in y["nested"]["d"] and y["var"] == "${PG_USER}"):
+    failures.append(f"yaml_subset_load basic shape: {y!r}")
+for hostile in ["bad:\n  - x\n  y: 2\n", "models: [\n", "a: &x 1\n", "a: *x\n", "a: 'unterminated\n",
+                "a:\n\t- x\n", "a: {b: [1]}\n", "a: 1\n---\nb: 2\n", "a: !!python/object x\n", "- x\nb: 1\n"]:
+    try:
+        pv.yaml_subset_load(hostile)
+        failures.append(f"yaml_subset_load accepted hostile input {hostile!r}")
+    except ValueError:
+        pass
+    except Exception as exc:  # noqa: BLE001 — anything but ValueError is a crash path
+        failures.append(f"yaml_subset_load crashed ({exc.__class__.__name__}) on {hostile!r}")
+cl = load("classify_v05", "skills/data-classification/scripts/classify_hints.py")
+for cand, ok in [("GB82WEST12345698765432", True), ("DE89370400440532013000", True), ("GB82WEST12345698765433", False), ("XX00", False)]:
+    if cl.iban_valid(cand) is not ok:
+        failures.append(f"iban_valid({cand}) != {ok}")
+db = load("dbt_v05", "skills/dbt-governance-audit/scripts/dbt_audit.py")
+for entry, expect in [("ref('m')", "m"), ('ref("m")', "m"), ("ref('pkg', 'm')", "m"), ("ref('m', version=2)", "m"),
+                      ("ref('m', v=2)", "m"), ("source('src', 'tbl')", "tbl"), ("ref(var('x'))", None), ("metric('x')", None), ("", None)]:
+    got = db.depends_on_model(entry)
+    if got != expect:
+        failures.append(f"depends_on_model({entry!r}) = {got!r}, expected {expect!r}")
+
 # Fail-closed expiry: unparseable AND blank expires= must both count as expired.
 # Blank expires= (fail-open) was an edge-hardening finding — locked here across all evaluators.
 permeval = load("permeval", "skills/ai-config-audit/scripts/permeval.py")
