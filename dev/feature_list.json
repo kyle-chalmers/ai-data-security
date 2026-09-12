@@ -140,6 +140,34 @@
       "description": "SARIF 2.1.0 export from the JSON interchange with level mapping, notifications for unknowns, fingerprints, no values",
       "check": "run-fixture-checks 'SARIF export' step green",
       "passes": true
+    },
+    {
+      "id": "S9.1-db-identity",
+      "slice": "9",
+      "description": "DB-ID-01 effective identity on both dialects (pg attrs/ownership/inheritance; sf user TYPE, secondary roles, granted roles)",
+      "check": "postgres-fixture-check.sh + run-fixture-checks.sh sf assertions: DB-ID-01 HIGH with analyst_group (pg) and TYPE = PERSON / ALL / ANALYST (sf)",
+      "passes": true
+    },
+    {
+      "id": "S9.2-db-boundary-attachment",
+      "slice": "9",
+      "description": "DB-07 indirect paths and DB-08 policy attachment fire on the fixtures; dynamic-table owner INFO",
+      "check": "assertions for inherited_grant + default privileges (pg), inherits ANALYST (sf), zero POLICY_REFERENCES + SYSADMIN dynamic table (sf), no anon labels (pg)",
+      "passes": true
+    },
+    {
+      "id": "S9.3-db-audit-quality-external",
+      "slice": "9",
+      "description": "DB-09 audit-trail quality and DB-10 external paths on both dialects",
+      "check": "pgaudit not loaded + collector off (pg); GOVERNANCE_VIEWER unheld + cache on (sf); pg_write_server_files CRITICAL (pg); STAGE USAGE HIGH (sf)",
+      "passes": true
+    },
+    {
+      "id": "S9.4-db-fail-closed-inputs",
+      "slice": "9",
+      "description": "Missing v0.4 inputs are DB-06 UNKNOWN naming the statement and the GOVERNANCE_VIEWER precondition; no v0.4 finding is claimed without its input",
+      "check": "run-fixture-checks 'without v0.4 inputs' assertions for both dialects",
+      "passes": true
     }
   ]
 }

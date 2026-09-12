@@ -317,7 +317,82 @@ python3 skills/db-access-audit/scripts/eval_grants.py \
 assert "DB-04 suppressed into appendix; other findings intact" \
   '(.findings | map(.check_id) | index("DB-04")) == null and (.suppressed | length == 1) and (.findings | length >= 3)'
 
+step "db-access-audit postgres recorded CSVs: v0.4 checks from goldens (no docker)"
+PGE="tests/fixtures/postgres/expected"
+python3 skills/db-access-audit/scripts/eval_grants.py \
+  --grants "$PGE/grants.csv" --pii "$PGE/pii_columns.csv" --views "$PGE/masked_views.csv" \
+  --settings "$PGE/audit_logging.csv" --identity "$PGE/identity.csv" --policies "$PGE/policy_attachment.csv" \
+  --external "$PGE/external_paths.csv" --audit-quality "$PGE/audit_quality.csv" \
+  --role ai_agent --principal-confirmed --emit-json "$TMP/out.json"
+assert "pg goldens: DB-ID-01, DB-07, DB-08, DB-09, DB-10 all fire" \
+  '[.findings[].check_id] | (index("DB-ID-01") != null and index("DB-07") != null and index("DB-08") != null and index("DB-09") != null and index("DB-10") != null)'
+assert "pg goldens: DB-10 is CRITICAL for pg_write_server_files" \
+  '.findings | any(.check_id == "DB-10" and .severity == "CRITICAL")'
+python3 skills/db-access-audit/scripts/eval_grants.py \
+  --grants "$PGE/grants.csv" --pii "$PGE/pii_columns.csv" --views "$PGE/masked_views.csv" \
+  --settings "$PGE/audit_logging.csv" --role ai_agent --principal-confirmed --emit-json "$TMP/out.json"
+assert "pg without v0.4 inputs: four DB-06 'not captured' unknowns, none of the five v0.4 findings claimed" \
+  '([.unknowns[] | select(.reason | test("not captured"))] | length == 4) and ([.findings[].check_id] | (index("DB-ID-01") == null and index("DB-07") == null and index("DB-08") == null and index("DB-09") == null and index("DB-10") == null))'
+python3 skills/db-access-audit/scripts/eval_grants.py \
+  --grants "$PGE/grants.csv" --pii "$TMP/does-not-exist.csv" --views "$PGE/masked_views.csv" \
+  --settings "$PGE/audit_logging.csv" --identity "$PGE/identity.csv" --policies "$PGE/policy_attachment.csv" \
+  --external "$PGE/external_paths.csv" --audit-quality "$PGE/audit_quality.csv" \
+  --role ai_agent --principal-confirmed --emit-json "$TMP/out.json"
+assert "pg with pii_columns missing: DB-07 not claimed; DB-06 says DB-07 was not assessed" \
+  '([.findings[].check_id] | index("DB-07") == null) and (.unknowns | any(.reason | test("DB-07")))'
+
 step "db-access-audit snowflake pack: script-computed verdicts match expected_findings.md"
+SFF="tests/fixtures/snowflake"
+SF_V04=(--identity "$SFF/identity.txt" --policies "$SFF/policy_references.txt" --audit-quality "$SFF/audit_quality.txt")
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect snowflake \
+  --grants tests/fixtures/snowflake/grants.txt --pii tests/fixtures/snowflake/pii_columns.txt \
+  --views tests/fixtures/snowflake/masked_views.txt --settings tests/fixtures/snowflake/audit_logging.txt "${SF_V04[@]}" \
+  --role AI_AGENT --principal-confirmed --emit-json "$TMP/out.json"
+assert "sf DB-ID-01 HIGH: PERSON user, secondary roles ALL, two roles granted" \
+  '.findings | any(.check_id == "DB-ID-01" and .severity == "HIGH" and (.evidence | test("TYPE = PERSON")) and (.evidence | test("ALL")) and (.evidence | test("ANALYST")))'
+assert "sf DB-07 HIGH: role inherits ANALYST" \
+  '.findings | any(.check_id == "DB-07" and .severity == "HIGH" and (.evidence | test("inherits ANALYST")))'
+assert "sf DB-08 HIGH: zero policy references, SSN + CARD_NUMBER unprotected; INFO for dynamic table owner" \
+  '(.findings | any(.check_id == "DB-08" and .severity == "HIGH" and (.evidence | test("SSN")) and (.evidence | test("CARD_NUMBER")))) and (.findings | any(.check_id == "DB-08" and .severity == "INFO" and (.evidence | test("SYSADMIN"))))'
+assert "sf DB-09 MEDIUM/probable: nobody holds GOVERNANCE_VIEWER, cache reuse on" \
+  '.findings | any(.check_id == "DB-09" and .severity == "MEDIUM" and .confidence == "probable" and (.evidence | test("GOVERNANCE_VIEWER")) and (.evidence | test("USE_CACHED_RESULT")))'
+assert "sf DB-10 HIGH: USAGE on STAGE" \
+  '.findings | any(.check_id == "DB-10" and .severity == "HIGH" and (.evidence | test("STAGE ANALYTICS.APP.EXPORTS")))'
+assert "sf v0.4 inputs present: no 'not captured' unknowns" \
+  '[.unknowns[] | select(.reason | test("not captured"))] | length == 0'
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect snowflake \
+  --grants tests/fixtures/snowflake/grants.txt --pii tests/fixtures/snowflake/pii_columns.txt \
+  --views tests/fixtures/snowflake/masked_views.txt --settings tests/fixtures/snowflake/audit_logging.txt \
+  --role AI_AGENT --principal-confirmed --emit-json "$TMP/out.json"
+assert "sf without v0.4 inputs: identity/policy_references/audit_quality UNKNOWN with the GOVERNANCE_VIEWER precondition; no DB-ID-01 / DB-08 HIGH / DB-09 claimed" \
+  '([.unknowns[] | select(.reason | test("not captured"))] | length == 3) and (.unknowns | any(.reason | test("GOVERNANCE_VIEWER"))) and ([.findings[].check_id] | (index("DB-ID-01") == null and index("DB-09") == null)) and ([.findings[] | select(.check_id == "DB-08" and .severity != "INFO")] | length == 0)'
+
+step "sf fail-closed on malformed captures: renamed grants column, DESCRIBE USER without TYPE"
+sed 's/| granted_on |/| granted_onx|/' tests/fixtures/snowflake/grants.txt > "$TMP/grants-badhdr.txt"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect snowflake \
+  --grants "$TMP/grants-badhdr.txt" --pii tests/fixtures/snowflake/pii_columns.txt \
+  --views tests/fixtures/snowflake/masked_views.txt --settings tests/fixtures/snowflake/audit_logging.txt "${SF_V04[@]}" \
+  --role AI_AGENT --principal-confirmed --emit-json "$TMP/out.json"
+assert "renamed granted_on column -> grants DB-06 UNKNOWN; no DB-01/DB-02/DB-07/DB-10 claimed" \
+  '(.unknowns | any(.check_id == "DB-06" and (.reason | test("grants")) and (.reason | test("header")))) and ([.findings[].check_id] | (index("DB-01") == null and index("DB-02") == null and index("DB-07") == null and index("DB-10") == null))'
+grep -v '^| TYPE ' tests/fixtures/snowflake/identity.txt > "$TMP/identity-notype.txt"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect snowflake \
+  --grants tests/fixtures/snowflake/grants.txt --pii tests/fixtures/snowflake/pii_columns.txt \
+  --views tests/fixtures/snowflake/masked_views.txt --settings tests/fixtures/snowflake/audit_logging.txt \
+  --identity "$TMP/identity-notype.txt" --policies "$SFF/policy_references.txt" --audit-quality "$SFF/audit_quality.txt" \
+  --role AI_AGENT --principal-confirmed --emit-json "$TMP/out.json"
+assert "DESCRIBE USER without TYPE -> DB-06 UNKNOWN, no DB-ID-01 claimed" \
+  '(.unknowns | any(.reason | test("lacks TYPE"))) and ([.findings[].check_id] | index("DB-ID-01") == null)'
+sed 's/| DEFAULT_ROLE            | AI_AGENT /| DEFAULT_ROLE            | ANALYST  /' tests/fixtures/snowflake/identity.txt > "$TMP/identity-defrole.txt"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect snowflake \
+  --grants tests/fixtures/snowflake/grants.txt --pii tests/fixtures/snowflake/pii_columns.txt \
+  --views tests/fixtures/snowflake/masked_views.txt --settings tests/fixtures/snowflake/audit_logging.txt \
+  --identity "$TMP/identity-defrole.txt" --policies "$SFF/policy_references.txt" --audit-quality "$SFF/audit_quality.txt" \
+  --role AI_AGENT --principal-confirmed --emit-json "$TMP/out.json"
+assert "DEFAULT_ROLE different from the audited role is named in DB-ID-01" \
+  '.findings | any(.check_id == "DB-ID-01" and (.evidence | test("DEFAULT_ROLE is ANALYST")))'
+assert "literal NULL execute_as_user still yields the dynamic-table INFO" \
+  '.findings | any(.check_id == "DB-08" and .severity == "INFO" and (.evidence | test("CUSTOMER_MASK_DT")))'
 python3 skills/db-access-audit/scripts/eval_grants.py --dialect snowflake \
   --grants tests/fixtures/snowflake/grants.txt --pii tests/fixtures/snowflake/pii_columns.txt \
   --views tests/fixtures/snowflake/masked_views.txt --settings tests/fixtures/snowflake/audit_logging.txt \

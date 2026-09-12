@@ -1,0 +1,23 @@
+-- FIXTURE: recorded output of `snow sql -D "user=AI_AGENT" -f identity.sql` against the same
+-- deliberately misconfigured demo account: the "AI user" is a PERSON-type user with every granted
+-- role active as a secondary role. Values are invented; shapes mirror DESCRIBE USER / SHOW GRANTS.
+-- Statement 1: DESCRIBE USER AI_AGENT
++-------------------------+----------------------+---------+-------------------------------------------------+
+| property                | value                | default | description                                     |
+|-------------------------+----------------------+---------+-------------------------------------------------|
+| NAME                    | AI_AGENT             | null    | Name                                            |
+| LOGIN_NAME              | AI_AGENT_SVC         | null    | Login name of the user                          |
+| TYPE                    | PERSON               | null    | User type                                       |
+| DEFAULT_ROLE            | AI_AGENT             | null    | Primary principal of user session for privilege |
+| DEFAULT_SECONDARY_ROLES | ["ALL"]              | null    | Secondary roles activated by default            |
+| DISABLED                | false                | false   | Whether the user is disabled                    |
+| RSA_PUBLIC_KEY_FP       | SHA256:fixturefpXXXX | null    | Fingerprint of user's RSA public key            |
++-------------------------+----------------------+---------+-------------------------------------------------+
+
+-- Statement 2: SHOW GRANTS TO USER AI_AGENT
++-------------------------------+------+----------+------------+--------------+------------+
+| created_on                    | role | granted_to | grantee_name | granted_by |
+|-------------------------------+------+------------+--------------+------------|
+| 2026-05-01 09:01:00.000 -0700 | AI_AGENT | USER   | AI_AGENT     | SYSADMIN   |
+| 2025-11-02 12:00:00.000 -0700 | ANALYST  | USER   | AI_AGENT     | SYSADMIN   |
++-------------------------------+----------+--------+--------------+------------+

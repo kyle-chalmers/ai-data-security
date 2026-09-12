@@ -1,0 +1,2 @@
+kind,name,detail
+server_role,pg_write_server_files,write files on the server

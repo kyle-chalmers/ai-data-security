@@ -1,0 +1,3 @@
+kind,name,detail
+rls,app.customers,off
+rls,app.orders,off

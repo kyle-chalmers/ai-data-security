@@ -27,3 +27,16 @@ CREATE ROLE ai_agent LOGIN PASSWORD 'fixture-placeholder';
 
 GRANT USAGE ON SCHEMA app TO ai_agent;
 GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA app TO ai_agent;
+
+-- v0.4 additions: the silent-widening paths DB-ID-01 / DB-07 / DB-10 must catch.
+-- An analyst group that can read everything, inherited by the AI role (INHERIT is the default):
+CREATE ROLE analyst_group NOLOGIN;
+GRANT USAGE ON SCHEMA app TO analyst_group;
+GRANT SELECT ON ALL TABLES IN SCHEMA app TO analyst_group;
+GRANT analyst_group TO ai_agent;
+-- A PUBLIC grant every role inherits, including the AI role:
+GRANT SELECT ON app.orders TO PUBLIC;
+-- Future tables in app will be readable by the AI role automatically:
+ALTER DEFAULT PRIVILEGES IN SCHEMA app GRANT SELECT ON TABLES TO ai_agent;
+-- A server-side file role: bypasses all database-level permission checks.
+GRANT pg_write_server_files TO ai_agent;

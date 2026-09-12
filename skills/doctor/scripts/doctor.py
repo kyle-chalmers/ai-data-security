@@ -140,7 +140,8 @@ def capability_matrix(tools):
     rows.append(("db-access-audit (postgres)", "ready" if tools["psql"]["present"] else "UNKNOWN",
                  "psql present" if tools["psql"]["present"] else "psql missing → live Postgres audit unavailable; --recorded <dir> still works"))
     rows.append(("db-access-audit (snowflake)", "ready" if tools["snow"]["present"] else "UNKNOWN",
-                 "snow present" if tools["snow"]["present"] else "snow CLI missing → live Snowflake audit unavailable; --recorded <dir> still works"))
+                 ("snow present; DB-08/DB-09 additionally need GRANT DATABASE ROLE SNOWFLAKE.GOVERNANCE_VIEWER on the auditing role"
+                  if tools["snow"]["present"] else "snow CLI missing → live Snowflake audit unavailable; --recorded <dir> still works")))
     rows.append(("quick-check", "ready" if tools["gitleaks"]["present"] else "partial",
                  "all three lanes" if tools["gitleaks"]["present"] else "secrets lane will be UNKNOWN without gitleaks"))
     rows.append(("security-audit", "ready" if tools["gitleaks"]["present"] else "partial",

@@ -3,6 +3,63 @@
 All notable changes to AI Data Security are documented here. This project follows
 [Semantic Versioning](https://semver.org). Dates are ISO-8601.
 
+## [0.4.0] — 2026-09-12
+
+The decision-quality DB audit (ROADMAP v0.4). DB findings now name a remediable boundary and say
+what they could not see. Every new input is optional and fails closed: a missing capture is a
+DB-06 UNKNOWN with the exact statement to run, never a pass. Invariants unchanged (scripts decide,
+model narrates; extends-only; stdlib-only). The DB-01..DB-05 finding payloads are unchanged on the
+same inputs; the evaluator's tool version and the four "not captured" DB-06 entries are the only
+differences a 0.3.0 caller sees.
+
+### Added
+- **DB-ID-01 effective identity.** Postgres: superuser / BYPASSRLS / CREATEROLE / replication
+  attributes (CRITICAL), owned relations, and INHERIT role memberships walked recursively.
+  Snowflake: `DESCRIBE USER` + `SHOW GRANTS TO USER` — a `TYPE = PERSON` user, `DEFAULT_SECONDARY_ROLES
+  = ('ALL')`, more than one role granted to the agent's user, or a `DEFAULT_ROLE` different from
+  the audited role (HIGH). A capture without `TYPE` is UNKNOWN, not a finding. The role name is not
+  the boundary; the user's type, default role, and secondary roles are (Snowflake agent identity,
+  GA 2026-07-23).
+- **DB-07 raw-to-curated boundary crossed indirectly.** Postgres: SELECT reachable through
+  inherited role grants, PUBLIC grants, or `ALTER DEFAULT PRIVILEGES`. Snowflake: `USAGE` on
+  ROLE (inheritance). Revoking direct SELECTs would not close these.
+- **DB-08 governed-control attachment.** Postgres: readable PII columns with no PostgreSQL
+  Anonymizer (`anon`) masking label, with RLS state reported and the absence of any masking
+  mechanism stated. Snowflake: `ACCOUNT_USAGE.POLICY_REFERENCES` (needs
+  `SNOWFLAKE.GOVERNANCE_VIEWER`; the INFORMATION_SCHEMA table function is deliberately not used
+  because it returns only owned objects); dynamic tables refreshing as their owner without
+  `EXECUTE AS USER` are an INFO note.
+- **DB-09 audit-trail quality.** Postgres: pgaudit loaded and configured, per-role
+  `log_statement`, collector and destination. Snowflake: who holds `GOVERNANCE_VIEWER`, and
+  `USE_CACHED_RESULT` for the AI user (cache hits show 0 rows in access history). Probable at
+  best on Snowflake, as DB-05 already was. The holder query reads `ACCOUNT_USAGE.GRANTS_TO_ROLES`
+  (needs `SNOWFLAKE.SECURITY_VIEWER`) because `SHOW GRANTS` has no `OF DATABASE ROLE` form.
+- **DB-10 paths outside the database.** Postgres: `pg_write_server_files` /
+  `pg_execute_server_program` (CRITICAL, they bypass all database permission checks) /
+  `pg_read_server_files`, foreign servers the role may USE, and EXECUTE on server-reaching
+  functions (`dblink*`, `pg_read_file`, `pg_ls_dir`, `lo_import`/`lo_export`); installed network
+  extensions are reported as context, not as a finding. Snowflake: `USAGE` on STAGE,
+  INTEGRATION, or EXTERNAL VOLUME.
+- New pack files: Postgres `identity.sql`, `policy_attachment.sql`, `external_paths.sql`,
+  `audit_quality.sql`; Snowflake `identity.sql`, `policy_references.sql`, `audit_quality.sql`;
+  `masked_views.sql` gains `SHOW DYNAMIC TABLES`. Evaluator inputs `--identity`, `--policies`,
+  `--external`, `--audit-quality`; skill argument `--user <ai-user>` for Snowflake.
+- **Auditor-privilege precondition** stated in the skill gate and reference: `GRANT DATABASE ROLE
+  SNOWFLAKE.GOVERNANCE_VIEWER TO ROLE <auditor>` (policy references) and `SNOWFLAKE.SECURITY_VIEWER`
+  (grants to roles); without them DB-08/DB-09 are UNKNOWN, and the audit never asks to run as
+  ACCOUNTADMIN. Recorded Snowflake inputs are header-validated per statement; a renamed or missing
+  column fails closed to DB-06 instead of silently passing.
+- Citations: Snowflake agent identity and access-control overview, NIST SP 800-188 §4.3.2,
+  PostgreSQL predefined roles.
+- Fixtures: the Postgres fixture gains an inherited analyst group, a PUBLIC grant, default
+  privileges, and `pg_write_server_files`; goldens regenerated; Snowflake recorded fixtures
+  for identity, policy references, audit quality, a stage grant, role inheritance, a dynamic table.
+
+### Changed
+- `eval_grants` tool version 2 → 3. Remediation text names the service-identity target
+  (`SERVICE_AGENT`, `DEFAULT_SECONDARY_ROLES = ()`; NOINHERIT on Postgres) and keyed hashing or
+  tokenization with the key outside the AI role's reach.
+
 ## [0.3.0] — 2026-09-11
 
 The trustworthy-first-run release, shaped by the September 2026 research pass (`docs/research/`).
@@ -175,6 +232,7 @@ First public release. Feature-complete v1: audit-only, read-only, every finding 
   hunt): permission-glob precision, uniform fail-closed suppression, a value-leak in classification
   evidence, crash-resistance on hostile inputs, and a regex ReDoS were all fixed and regression-locked.
 
+[0.4.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.4.0
 [0.3.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.3.0
 [0.1.2]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.1.2
 [0.1.1]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.1.1
