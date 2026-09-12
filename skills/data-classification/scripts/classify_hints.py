@@ -99,6 +99,11 @@ def load_org_config(path):
 EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+\b")
 SSN = re.compile(r"\b(\d{3})-(\d{2})-(\d{4})\b")
 PAN = re.compile(r"\b(?:\d[ -]?){13,19}\b")
+# v0.5 validators. Each is bounded (no nested quantifiers over the same class) so scanning stays linear.
+PHONE_E164 = re.compile(r"(?<![\w+])\+[1-9]\d{7,14}\b")
+PHONE_NANP = re.compile(r"(?<!\d)\(?([2-9]\d{2})\)?[-. ]([2-9]\d{2})[-. ](\d{4})(?!\d)")
+IBAN = re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b")
+IPV4 = re.compile(r"(?<![\d.])(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?![\d.])")
 
 MAX_BYTES = 1_000_000  # per-file content sample cap
 SKIP_DIRS = {".git", "node_modules", ".venv", "__pycache__"}
@@ -129,8 +134,35 @@ def looks_text(sample):
     return b"\x00" not in sample
 
 
+def iban_valid(candidate):
+    """ISO 13616 mod-97 check on an uppercase, separator-free candidate."""
+    if not 15 <= len(candidate) <= 34 or not candidate[:2].isalpha() or not candidate[2:4].isdigit():
+        return False
+    rearranged = candidate[4:] + candidate[:4]
+    digits = ""
+    for ch in rearranged:
+        if ch.isdigit():
+            digits += ch
+        elif ch.isalpha():
+            digits += str(ord(ch) - 55)  # A=10 … Z=35
+        else:
+            return False
+    return int(digits) % 97 == 1
+
+
+def ipv4_valid(match):
+    return all(0 <= int(part) <= 255 for part in match.groups())
+
+
+def count_phones(text):
+    e164 = len(PHONE_E164.findall(text))
+    nanp = sum(1 for _ in PHONE_NANP.finditer(text))
+    return e164 + nanp
+
+
 def classify_file(path, relpath):
-    indicators = {"emails": 0, "ssn_valid": 0, "pan_luhn_valid": 0}
+    indicators = {"emails": 0, "ssn_valid": 0, "pan_luhn_valid": 0,
+                  "phones": 0, "iban_valid": 0, "ipv4_valid": 0}
     pii_columns = []
     filename_hits = []
     floor = "Internal"
@@ -181,6 +213,9 @@ def classify_file(path, relpath):
     indicators["pan_luhn_valid"] = sum(
         1 for m in PAN.finditer(text) if luhn_valid(re.sub(r"[ -]", "", m.group()))
     )
+    indicators["phones"] = count_phones(text)
+    indicators["iban_valid"] = sum(1 for m in IBAN.finditer(text) if iban_valid(m.group()))
+    indicators["ipv4_valid"] = sum(1 for m in IPV4.finditer(text) if ipv4_valid(m))
 
     # Header sniff for delimited files: match column names against the shared patterns.
     # Only genuine column identifiers may ever enter pii_columns (which is echoed into the
@@ -199,10 +234,10 @@ def classify_file(path, relpath):
                     break
 
     confidence = "probable"
-    if indicators["ssn_valid"] or indicators["pan_luhn_valid"]:
-        raise_floor("Restricted")
+    if indicators["ssn_valid"] or indicators["pan_luhn_valid"] or indicators["iban_valid"]:
+        raise_floor("Restricted")  # IBAN = bank account number, Restricted like account_number
         confidence = "confirmed"
-    elif indicators["emails"]:
+    elif indicators["emails"] or indicators["phones"] or indicators["ipv4_valid"]:
         raise_floor("Confidential")
         confidence = "confirmed"
     elif not pii_columns and not filename_hits:
@@ -274,6 +309,12 @@ def build_findings(files, citations, checks):
             evidence_bits.append(f"{ind['pan_luhn_valid']} Luhn-valid card number(s)")
         if ind["emails"]:
             evidence_bits.append(f"{ind['emails']} validated email(s)")
+        if ind.get("iban_valid"):
+            evidence_bits.append(f"{ind['iban_valid']} mod-97-valid IBAN(s)")
+        if ind.get("phones"):
+            evidence_bits.append(f"{ind['phones']} phone number(s) (E.164 / NANP shape)")
+        if ind.get("ipv4_valid"):
+            evidence_bits.append(f"{ind['ipv4_valid']} IPv4 address(es)")
         if entry["pii_columns"]:
             evidence_bits.append(f"PII columns: {', '.join(entry['pii_columns'])}")
         if entry["filename_hits"]:
@@ -398,7 +439,7 @@ def main():
         "schema_version": SCHEMA_VERSION,
         "skill": "data-classification",
         "target": target,
-        "tools": {"classify_hints": "2"},
+        "tools": {"classify_hints": "3"},
         "files": files,
         "findings": active,
         "unknowns": unknowns,

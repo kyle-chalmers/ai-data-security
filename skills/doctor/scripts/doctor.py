@@ -102,8 +102,10 @@ def evaluators_compile():
         "skills/ai-config-audit/scripts/permeval.py",
         "skills/data-classification/scripts/classify_hints.py",
         "skills/db-access-audit/scripts/eval_grants.py",
+        "skills/dbt-governance-audit/scripts/dbt_audit.py",
         "skills/quick-check/scripts/quick_check.py",
         "scripts/to_sarif.py",
+        "scripts/yaml_subset.py",
     ):
         path = os.path.join(PLUGIN_ROOT, rel)
         try:
@@ -137,6 +139,7 @@ def capability_matrix(tools):
                  else "gitleaks missing → SS-05 UNKNOWN (brew install gitleaks)"))
     rows.append(("ai-config-audit", "ready", "stdlib only"))
     rows.append(("data-classification", "ready", "stdlib only"))
+    rows.append(("dbt-governance-audit", "ready", "stdlib only; YAML declarations, no connection"))
     rows.append(("db-access-audit (postgres)", "ready" if tools["psql"]["present"] else "UNKNOWN",
                  "psql present" if tools["psql"]["present"] else "psql missing → live Postgres audit unavailable; --recorded <dir> still works"))
     rows.append(("db-access-audit (snowflake)", "ready" if tools["snow"]["present"] else "UNKNOWN",

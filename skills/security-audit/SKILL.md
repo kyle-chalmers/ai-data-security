@@ -1,5 +1,5 @@
 ---
-description: The ~30-minute end-to-end data + AI security audit — orchestrates secrets-scanner, ai-config-audit, data-classification, and (optionally) db-access-audit into one prioritized, deduplicated, cited report. Read-only.
+description: The ~30-minute end-to-end data + AI security audit — orchestrates secrets-scanner, ai-config-audit, data-classification, dbt-governance-audit (when a dbt project is present), and (optionally) db-access-audit into one prioritized, deduplicated, cited report. Read-only.
 argument-hint: "[target-directory] [--home <dir>] [--db '<db-access-audit args>'] [--sarif <file>]"
 ---
 
@@ -18,6 +18,7 @@ before starting.
 | 1 | Secrets | Invoke skill `ai-data-security:secrets-scanner` with the target path |
 | 2 | AI config | Invoke skill `ai-data-security:ai-config-audit` with the target path (append `--home <dir>` if given) |
 | 3 | Classification | Invoke skill `ai-data-security:data-classification` with the target path |
+| 3b | dbt declarations | ONLY if a `dbt_project.yml` exists at the target or one level down: invoke skill `ai-data-security:dbt-governance-audit` with that project path. Otherwise skip silently (nothing to audit, not an UNKNOWN) |
 | 4 | Database | ONLY if `--db '<args>'` was provided: invoke skill `ai-data-security:db-access-audit` with exactly those args. Otherwise record a DB-06 UNKNOWN: "DB audit skipped — no connection provided" |
 
 ## Steps
@@ -25,7 +26,7 @@ before starting.
 1. **Resolve the target** (`$ARGUMENTS` first positional; default cwd) and parse `--home` /
    `--db`. Announce the plan in two sentences.
 
-2. **Run phases 1–3** by invoking each worker skill via the Skill tool (they run forked; each
+2. **Run phases 1–3 (and 3b when applicable)** by invoking each worker skill via the Skill tool (they run forked; each
    returns a rendered report followed by a fenced JSON block). If a worker returns no parseable
    JSON, re-invoke it once; if it still fails, record one UNKNOWN for that whole section —
    fail closed, never silently omit a section.

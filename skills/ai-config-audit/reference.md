@@ -11,6 +11,10 @@
 | Plaintext transcripts | Yes — `~/.claude/projects/` | AC-05 |
 | Consumer training/retention tier | **No** — account setting at claude.ai | AC-06 (always UNKNOWN) |
 | Bash sandbox posture | Yes — `sandbox.enabled` and `sandbox.filesystem.disabled` in `~/.claude/settings.json` (or the project's `settings.local.json`, where the `/sandbox` panel writes it). MEDIUM when isolation is off; INFO when on without `failIfUnavailable` | AC-07 |
+| Capability composition | Yes — warehouse-shaped MCP servers × remote MCP / network allow rules. INFO inventory only; not a prompt-injection detector | AC-08 |
+| MCP server provenance | Yes — `npx` / `uvx` / `bunx` / `pipx run` / `pnpm dlx` without an exact pin (`pkg@x.y.z` or `pkg==x.y.z`), `@latest`, git/URL sources without a full commit SHA | AC-09 |
+| Write-capable warehouse MCP | Yes, from the server's own config — Snowflake `sql_statement_permissions` (YAML named by `--service-config-file`; `Unknown: True` counts as write-capable because it passes unmapped statements), Postgres MCP Pro `--access-mode` (a remote/URL server → **UNKNOWN**, the mode lives server-side), Toolbox `tools.yaml` statements (leading comments stripped; data-modifying CTEs count as writes; a statement the matcher cannot place → **UNKNOWN**); Databricks MCP has no control (INFO). Config not found or unparseable → **UNKNOWN** | AC-10 |
+| Local sensitive sinks | Yes — `~/.duckdb/stored_secrets/*`, credential-shaped keys with literal values in `~/.snowflake/connections.toml`, `~/.snowflake/config.toml`, `~/.databrickscfg`, `~/.dbt/profiles.yml`, `~/.aws/credentials`, `~/.pgpass`; shell history files with no `*_history` deny rule | AC-11 |
 
 ## MCP config path matrix (scanned by permeval.py)
 
@@ -21,6 +25,33 @@
 | Cursor | `.cursor/mcp.json` | `~/.cursor/mcp.json` |
 | Gemini CLI | `.gemini/settings.json` | `~/.gemini/settings.json` |
 | Codex | — | `~/.codex/config.toml` (`[mcp_servers.*]` tables) + `~/.codex/auth.json` |
+| VS Code / Copilot | `.vscode/mcp.json` (`servers` key; `headers` scanned for credential-shaped keys incl. `Authorization`) | — |
+| Windsurf | — | `~/.codeium/windsurf/mcp_config.json` |
+| Cline | — | `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` |
+| Roo Code | — | `~/Library/Application Support/Code/User/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json` |
+| Continue | `.continue/mcpServers/*.yaml` / `*.json` (one file per server; `mcpServers` is a list) | `~/.continue/config.yaml`, `~/.continue/mcpServers/*`, legacy `~/.continue/config.json` |
+| GitHub Copilot CLI | — | `~/.copilot/mcp-config.json` |
+| OpenCode | `opencode.json` (`mcp.servers`, falling back to a flat `mcp` map for older configs; `command` may be a list) | `~/.config/opencode/opencode.json` |
+
+Paths for the v0.5 tools are the locations each tool documented as of 2026-09 (macOS paths for
+the VS Code-extension tools). A tool that moves its config produces no finding rather than a
+wrong one; add the new path here and to `permeval.py` together.
+
+YAML configs (Continue, Snowflake service config, Toolbox tools) are read by a shared stdlib
+YAML-subset reader (`scripts/yaml_subset.py`). Anything it does not support (anchors, aliases,
+tags, nested flow collections, multi-document files) makes that file an **UNKNOWN**, never a
+guess.
+
+## Why AC-10 reads the server's config, not the warehouse
+
+Warehouse MCP servers run with whatever identity they are given; the warehouse audit
+(`db-access-audit`) is the authority on that identity's grants. AC-10 asks the narrower, static
+question: does the server's own configuration allow writes at all? Only Postgres MCP Pro has a
+named switch (`--access-mode=restricted`). Snowflake-Labs/mcp uses a per-statement-type list in a
+YAML passed with `--service-config-file` (no fixed path, so the check follows the argument), and
+Toolbox's capability is exactly the SQL in each `tools.yaml` tool. Databricks Labs' server has no
+write control, so AC-10 reports INFO and defers to DB-01. A config that cannot be found or parsed
+is an AC-10 UNKNOWN: "we could not see the switch" is never "the switch is off".
 
 Codex TOML is parsed with `tomllib` on Python ≥3.11, else a line-based approximation that reads
 key names only.

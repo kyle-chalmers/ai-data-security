@@ -59,7 +59,7 @@ Make DB findings name a remediable boundary and say what they could not see.
 | **Auditor-privilege precondition** in `/doctor` and the DB skill gate: Snowflake `SECURITY_VIEWER` + `GOVERNANCE_VIEWER` database roles; Redshift `sys:secadmin` for masking/RLS views; otherwise those checks are UNKNOWN up front | S79, S80, S84 | SKILL.md, `eval_grants.py` | S | fixture without the role → DB-08 UNKNOWN with the exact GRANT statement to fix it | v1 |
 | `.ai-data-security-ignore` and org-profile parity for every new check | invariant | evaluators | S | existing suppression tests extended | v1 |
 
-## v0.5 — Agent-config depth (**coverage** + **credibility**)
+## v0.5 — Agent-config depth (**coverage** + **credibility**) — shipped 2026-09-12 as v0.5.0
 
 | Item | Finding | Touches | Size | CI proves | SPEC |
 |---|---|---|---|---|---|

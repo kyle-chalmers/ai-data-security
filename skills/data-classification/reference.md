@@ -6,7 +6,7 @@ specific to running the skill.
 
 ## Division of labor
 
-`scripts/classify_hints.py` decides: floors (never Public, floor Internal), validator-driven
+`scripts/classify_hints.py` decides: floors (never Public, floor Internal), validator-driven (SSN, Luhn, email, and since v0.5 IBAN mod-97, phone E.164/NANP, IPv4)
 confidence, DC-01/DC-02 findings, DC-03 unknowns, and suppression. The model decides: final
 tiers **upward-only** from the floor, and the one permitted downward move — arguing a file to
 Public with an explicit one-line justification.

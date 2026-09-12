@@ -168,6 +168,34 @@
       "description": "Missing v0.4 inputs are DB-06 UNKNOWN naming the statement and the GOVERNANCE_VIEWER precondition; no v0.4 finding is claimed without its input",
       "check": "run-fixture-checks 'without v0.4 inputs' assertions for both dialects",
       "passes": true
+    },
+    {
+      "id": "S10.1-ac08-ac11",
+      "slice": "10",
+      "description": "AC-08 inventory (INFO), AC-09 provenance, AC-10 write-capable warehouse MCP with UNKNOWN on missing/hostile config, AC-11 local sinks; hardened fixture stays clean",
+      "check": "run-fixture-checks ai-config assertions + 'AC-10 fail-closed' step",
+      "passes": true
+    },
+    {
+      "id": "S10.2-agent-tool-paths",
+      "slice": "10",
+      "description": "Six more agent-tool config paths incl. VS Code servers/headers",
+      "check": "AC-03 fires on .vscode/mcp.json headers.Authorization by key name",
+      "passes": true
+    },
+    {
+      "id": "S10.3-validators",
+      "slice": "10",
+      "description": "IBAN mod-97, phone, IPv4 validators; classify-repo unchanged",
+      "check": "classify-validators fixture step + test_matchers iban cases",
+      "passes": true
+    },
+    {
+      "id": "S10.4-dbt-audit",
+      "slice": "10",
+      "description": "dbt-governance-audit skill: DBT-01..DBT-04 from YAML only",
+      "check": "tests/fixtures/dbt-project step in run-fixture-checks",
+      "passes": true
     }
   ]
 }

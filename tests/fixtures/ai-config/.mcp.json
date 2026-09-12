@@ -1,12 +1,57 @@
 {
-  "$comment": "FIXTURE — MCP config with a credential-shaped literal (AC-03). The value is an inert placeholder; detection is by key name, never by value.",
+  "$comment": "FIXTURE \u2014 MCP config exercising AC-03 (credential-shaped literal, inert placeholder; detection by key name), AC-09 (unpinned npx -y package), AC-10 (write-capable warehouse servers: Snowflake sql_statement_permissions YAML, Postgres MCP Pro unrestricted, Toolbox tools.yaml with a DELETE), and AC-08 (warehouse + external channel composition). Also: a remote Postgres MCP (access mode not locally auditable -> AC-10 UNKNOWN) and a pinned `pipx run pkg==x.y.z` (no AC-09).",
   "mcpServers": {
     "warehouse": {
       "command": "npx",
-      "args": ["-y", "@example/warehouse-mcp"],
+      "args": [
+        "-y",
+        "@example/warehouse-mcp"
+      ],
       "env": {
         "WAREHOUSE_PASSWORD": "placeholder-not-a-real-value"
       }
+    },
+    "snowflake": {
+      "command": "uvx",
+      "args": [
+        "snowflake-labs-mcp",
+        "--service-config-file",
+        "./mcp/snowflake-mcp.yaml",
+        "--connection-name",
+        "ai_agent"
+      ]
+    },
+    "postgres": {
+      "command": "uv",
+      "args": [
+        "run",
+        "postgres-mcp",
+        "--access-mode=unrestricted"
+      ],
+      "env": {
+        "DATABASE_URI": "${DATABASE_URI}"
+      }
+    },
+    "toolbox": {
+      "command": "toolbox",
+      "args": [
+        "--tools-file",
+        "./mcp/tools.yaml"
+      ]
+    },
+    "web": {
+      "url": "https://mcp.example.invalid/search"
+    },
+    "postgres-mcp-remote": {
+      "type": "sse",
+      "url": "http://pg-mcp.example.invalid/sse"
+    },
+    "lineage": {
+      "command": "pipx",
+      "args": [
+        "run",
+        "example-lineage-mcp==2.1.0"
+      ]
     }
   }
 }

@@ -1,0 +1,47 @@
+version: 2
+models:
+  - name: customer_360
+    description: |
+      Wide customer mart consumed by BI and the AI agent.
+      # this line is part of the description, not a YAML comment
+    columns:
+      - name: customer_id
+      - name: email
+        meta: {contains_pii: true}
+      - name: full_name
+        tags: [pii]
+      - name: lifetime_value
+  - name: customer_masked
+    description: Masked layer; declares masking explicitly in meta (DBT-01 must not fire for it).
+    meta:
+      contains_pii: true
+      masked: true
+    columns:
+      - name: customer_id
+      - name: email_hash
+  - name: customer_curated
+    description: Named like a masked layer but declares nothing (a hint only; must not suppress DBT-01).
+    columns:
+      - name: customer_id
+exposures:
+  - name: ai_agent_semantic_layer
+    type: application
+    maturity: high
+    owner:
+      name: Data Intelligence
+    depends_on:
+      - ref('customer_360', version=2)
+      - ref('customer_masked')
+  - name: exec_dashboard
+    type: dashboard
+    owner:
+      name: BI
+    depends_on:
+      - ref('analytics', 'customer_360')
+      - ref('stg_customers')
+      - source('app', 'customers')
+  - name: legacy_report
+    type: analysis
+    owner:
+      name: BI
+    depends_on: ["ref(var('legacy_model'))"]
