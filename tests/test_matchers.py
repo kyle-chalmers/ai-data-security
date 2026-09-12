@@ -42,6 +42,47 @@ for pattern, relpath, expected in CASES:
     if got is not expected:
         failures.append(f"deny_covers({pattern!r}, {relpath!r}) = {got}, expected {expected}")
 
+# AC-01 deny-rule spelling equivalence (permeval): every documented anchor prefix normalizes to the
+# same protected path; non-Read rules and unrelated paths never satisfy a target.
+permeval_ac01 = load("permeval_ac01", "skills/ai-config-audit/scripts/permeval.py")
+DENY_CASES = [
+    ("Read(.env)", ".env"),
+    ("Read(**/.env)", ".env"),
+    ("Read(./.env)", ".env"),
+    ("Read(/.env)", ".env"),
+    ("Read(//**/.env)", ".env"),
+    ("Read(./secrets/**)", "secrets/**"),
+    ("Read(//**/secrets/**)", "secrets/**"),
+    ("Read(.env.*)", ".env.*"),
+    ("Read(prod.env)", "prod.env"),          # a different path, never equal to .env
+    ("Edit(.env)", None),                     # only Read rules count for AC-01
+    ("Bash(cat .env)", None),
+    ("Read( .env )", None),                   # inner whitespace is a different (useless) path
+    ("Read()", None),
+]
+for rule, expected in DENY_CASES:
+    got = permeval_ac01.deny_rule_target(rule)
+    if got != expected:
+        failures.append(f"deny_rule_target({rule!r}) = {got!r}, expected {expected!r}")
+if not permeval_ac01.deny_target_satisfied(".env", ["Read(**/.env)"]):
+    failures.append("deny_target_satisfied: Read(**/.env) should satisfy .env")
+if permeval_ac01.deny_target_satisfied(".env", ["Read(prod.env)", "Read(.env.*)"]):
+    failures.append("deny_target_satisfied: prod.env / .env.* must not satisfy .env")
+# Stronger globs subsume the requirement; weaker or unrelated ones never do.
+for target, rules, expected in [
+    (".env", ["Read(.env*)"], True),
+    (".env.*", ["Read(.env*)"], True),
+    (".env.*", ["Read(**/.env*)"], True),
+    ("secrets/**", ["Read(secrets/*)"], False),      # single segment: misses secrets/nested/b.key
+    ("secrets/**", ["Read(**/secrets/**)"], True),
+    ("secrets/**", ["Read(secret/**)"], False),
+    (".env", ["Read( .env )"], False),
+    (".env", ["Read(.env/**)"], False),
+]:
+    got = permeval_ac01.deny_target_satisfied(target, rules)
+    if got is not expected:
+        failures.append(f"deny_target_satisfied({target!r}, {rules!r}) = {got}, expected {expected}")
+
 # Fail-closed expiry: unparseable AND blank expires= must both count as expired.
 # Blank expires= (fail-open) was an edge-hardening finding — locked here across all evaluators.
 permeval = load("permeval", "skills/ai-config-audit/scripts/permeval.py")

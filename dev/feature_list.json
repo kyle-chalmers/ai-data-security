@@ -105,6 +105,41 @@
       "description": "eval_grants.py --dialect snowflake parses recorded snow-sql outputs and computes DB-01..DB-05 deterministically (scripts decide, model narrates, both dialects)",
       "check": "run-fixture-checks.sh snowflake step green: verdicts match tests/fixtures/snowflake/expected_findings.md exactly (incl. DB-05 probable cap), unconfirmed principal caps at MEDIUM + DB-06, garbage recorded output fails closed to DB-06",
       "passes": true
+    },
+    {
+      "id": "S8.1-doctor",
+      "slice": "8",
+      "description": "doctor prints a capability matrix, registry health, evaluator compile status, sandbox posture; exits 0 always",
+      "check": "tests/run-fixture-checks.sh 'doctor' step: registry.ok, evaluators all ok, gitleaks ready, missing home exits 0",
+      "passes": true
+    },
+    {
+      "id": "S8.2-quick-check",
+      "slice": "8",
+      "description": "quick-check prints exactly three verdict lines plus the UNKNOWN list over the combined fixture in under 120s, findings pass through with citations",
+      "check": "tests/run-fixture-checks.sh 'quick-check' step: 3 verdicts, SS-03/AC-01/AC-07/DC-01 present, SS-01/AC-06/DB-06 unknown, elapsed < 120s, no secret values",
+      "passes": true
+    },
+    {
+      "id": "S8.3-ac01-semantics-ac07",
+      "slice": "8",
+      "description": "AC-01 accepts every documented deny spelling; AC-07 reports sandbox posture; hardened fixture stays clean",
+      "check": "tests/test_matchers.py DENY_CASES + run-fixture-checks 'hardened', 'empty home', 'legacy ./' steps",
+      "passes": true
+    },
+    {
+      "id": "S8.4-citation-provenance",
+      "slice": "8",
+      "description": "every citation has published/accessed/status; no check cites a withdrawn entry; new OWASP 2026 / cheat-sheet / MCP-dated / Claude docs entries referenced by checks",
+      "check": "run-fixture-checks 'reference provenance' step green; jq shows 18 citations all referenced",
+      "passes": true
+    },
+    {
+      "id": "S8.5-sarif",
+      "slice": "8",
+      "description": "SARIF 2.1.0 export from the JSON interchange with level mapping, notifications for unknowns, fingerprints, no values",
+      "check": "run-fixture-checks 'SARIF export' step green",
+      "passes": true
     }
   ]
 }

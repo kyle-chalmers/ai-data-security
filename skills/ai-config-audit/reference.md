@@ -10,6 +10,7 @@
 | Gemini `trust: true` | Yes — `.gemini/settings.json` | AC-04 |
 | Plaintext transcripts | Yes — `~/.claude/projects/` | AC-05 |
 | Consumer training/retention tier | **No** — account setting at claude.ai | AC-06 (always UNKNOWN) |
+| Bash sandbox posture | Yes — `sandbox.enabled` and `sandbox.filesystem.disabled` in `~/.claude/settings.json` (or the project's `settings.local.json`, where the `/sandbox` panel writes it). MEDIUM when isolation is off; INFO when on without `failIfUnavailable` | AC-07 |
 
 ## MCP config path matrix (scanned by permeval.py)
 
@@ -44,12 +45,27 @@ wildcard swallows the inner command. Same for uvx, pnpm dlx, docker run/exec, ba
 The docs themselves call argument-constraining Bash patterns fragile; prefer exact commands and
 PreToolUse hooks for anything broader.
 
-## Deny rules vs. the OS (the AC-01 caveat)
+## Deny rules vs. the OS (the AC-01 caveat, and why AC-07 exists)
 
-`permissions.deny` `Read(...)` rules are enforced by Claude Code's tool layer. A subprocess the
-agent legitimately runs (a Python script, a make target) reads files with the agent's OS
-permissions and never consults deny rules. Deny rules are the right first step; OS-level
-guarantees require sandboxing.
+Per the Claude Code permissions docs (verified 2026-09-11), `Read(...)` deny rules apply to
+Claude's built-in file tools, to the Bash file commands Claude Code recognizes (`cat`, `head`,
+`tail`, `sed`) and to redirections. They do **not** apply to a command that reads files without
+naming them (`grep -r pattern .`) or to scripts that open files themselves. The Bash sandbox
+merges the same deny paths into OS-level filesystem rules for every Bash command and its children,
+which is why AC-07 reports `sandbox.enabled` as a posture finding. `sandbox.enabled` is a user- or
+managed-settings key; a repository's `.claude/settings.json` cannot turn it on.
+
+## Deny-rule spellings (AC-01 matches meaning, not text)
+
+| Spelling | Anchors at | Covers nested copies? |
+|---|---|---|
+| `Read(.env)` or `Read(**/.env)` | current directory | yes (bare filenames follow gitignore semantics) |
+| `Read(./.env)` or `Read(/.env)` | project root (project settings) | no |
+| `Read(//**/.env)` | filesystem root | yes, anywhere |
+
+AC-01 accepts any of these for each recommended target (`.env`, `.env.*`, `secrets/**`) and
+recommends the bare-name spelling. Before v0.3 the check compared strings and flagged
+`Read(.env)` as "missing"; that false positive is regression-locked in `tests/test_matchers.py`.
 
 ## Manual procedure — AC-06 (`manual-retention-check`)
 

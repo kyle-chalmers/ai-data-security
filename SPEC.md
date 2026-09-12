@@ -94,3 +94,53 @@ extends-only customization, fail-closed unknowns, stdlib-only, zero-config byte-
 - Final v1 check: clean-checkout marketplace install; a full `/ai-data-security:security-audit` run over the
   combined fixtures produces one cited, severity-sorted report; gitleaks tree+history self-scan clean;
   CI green; adversarial fresh-context review of the implementation against this spec.
+
+## v0.3 additions (slice 8 — 2026-09)
+
+Approved 2026-09-11 after the research pass in `docs/research/`. All items keep the v1 invariants
+(scripts decide / model narrates, extends-only customization, fail-closed unknowns, stdlib-only).
+The "zero-config byte-identical" invariant holds for every *existing* check; a **new** check
+(AC-07 here, as DC-03 was in 0.1.x) may add a finding to a repo with no config, and the CHANGELOG
+names it when that happens.
+
+1. **Trustworthy first run** — `doctor` (capability matrix: which tools are present, which checks
+   will be UNKNOWN, registry integrity) and `quick-check` (zero flags: agent-readable secrets on
+   disk, deny-rule and sandbox posture, Restricted-tier file count; three verdict lines plus the
+   UNKNOWN list). Both reuse the existing evaluators; neither adds a verdict engine.
+2. **AC-01 semantics** — recommended deny rules are matched by *meaning*, not string: `Read(.env)`,
+   `Read(**/.env)`, `Read(//**/.env)`, and `Read(./.env)` all satisfy the `.env` requirement per the
+   Claude Code permissions documentation; the recommendation is the any-depth spelling. New
+   **AC-07** reports Bash sandbox posture (`sandbox.enabled`), because deny rules bind the file
+   tools and recognized Bash file commands, not `grep -r` or scripts; only the sandbox enforces at
+   the OS level.
+3. **Citation registry provenance** — every `citations.yml` entry carries `published`, `accessed`,
+   and `status` (`current | superseded | withdrawn`); CI fails a check that cites a withdrawn
+   entry. New entries: OWASP Top 10 for Agentic Applications 2026 (ASI02, ASI03), OWASP AI Agent
+   Security Cheat Sheet, OWASP MCP Security Cheat Sheet, MCP Security Best Practices (2026-07-28),
+   Claude Code permissions and sandboxing docs. The OWASP LLM Top 10 2025 entries stay `current`
+   until the 2026 edition's numbering is verified against its PDF.
+4. **SARIF 2.1.0 export** from the JSON interchange (`scripts/to_sarif.py`), so findings can land
+   in GitHub Code Scanning.
+5. **Hashing caveat** — any remediation text that mentions hashing states that hashed identifiers
+   are pseudonymized, not anonymized (NIST SP 800-188 §4.3.2; EDPB Guidelines 01/2025), and points
+   at keyed hashing or tokenization with the key outside the AI role's reach.
+
+## Approved SPEC amendment (2026-09-11): safe-db-access planner
+
+The "Out of scope for v1" list names the safe-db-access IMPLEMENT recipe. The maintainer approves
+a **narrow amendment**: a `safe-db-access --plan` skill (roadmap v0.6) may *generate* the recipe as
+text for a human to review and execute. It MUST NOT write files, execute SQL, or change any
+connection or configuration; templates are fixed and parameters are validated deterministically,
+so the model never composes privilege-changing DDL. Output must state that hashed identifiers are
+pseudonymized, not anonymized, and must keep any hashing key or salt outside the AI role's reach.
+Applying the plan (roadmap v1.0 IMPLEMENT) and PreToolUse enforcement hooks remain **v2, not
+opened**.
+
+## Maintainer decisions recorded 2026-09-11
+
+- Planner approved as the amendment above; SPEC v2 (IMPLEMENT, hooks) stays closed.
+- Versioning: no back-tag of v0.2.0; the next release is v0.3.0 and carries the 0.2.0 notes.
+- The dbt static audit belongs in this plugin (roadmap v0.5), not a sibling.
+- Betterleaks is reported by `doctor` as information only; an adapter requires its own amendment
+  with fixture parity, because design rule 6 names gitleaks as the primary scanner.
+- README Mission/Vision: Option A from `docs/research/mission-vision-options.md`.

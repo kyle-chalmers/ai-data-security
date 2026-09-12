@@ -1,7 +1,7 @@
 {
-  "$comment": "FIXTURE — correctly hardened project settings: the false-positive guard for ai-config-audit. Expect zero findings from project scope.",
+  "$comment": "FIXTURE — correctly hardened project settings: the false-positive guard for ai-config-audit. Uses the any-depth deny spellings the docs define (bare name == **/name). Expect zero findings from project scope.",
   "permissions": {
     "allow": ["Bash(git status)", "Bash(git diff *)"],
-    "deny": ["Read(./.env)", "Read(./.env.*)", "Read(./secrets/**)"]
+    "deny": ["Read(.env)", "Read(**/.env.*)", "Read(//**/secrets/**)"]
   }
 }

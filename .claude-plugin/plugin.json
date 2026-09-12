@@ -2,8 +2,8 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "ai-data-security",
   "displayName": "AI Data Security",
-  "version": "0.2.0",
-  "description": "Data + AI security audits for data professionals \u2014 cited, severity-ranked findings for AI tool configs, secrets exposure, data classification, and warehouse access.",
+  "version": "0.3.0",
+  "description": "Data + AI security audits for data professionals — deterministic, cited, read-only findings for AI tool configs, secrets exposure, data classification, and warehouse access; doctor and quick-check for a one-minute first run.",
   "author": {
     "name": "Kyle Chalmers"
   },

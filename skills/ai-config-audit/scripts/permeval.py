@@ -9,6 +9,8 @@ Audits AI coding-tool configuration for data-safety risks:
   AC-04  Gemini per-server trust:true (silently bypasses tool-call confirmations)
   AC-05  plaintext session transcripts on disk (INFO)
   AC-06  consumer retention/training tier — NOT locally auditable, always UNKNOWN (fail closed)
+  AC-07  Bash sandbox filesystem isolation not enabled (deny rules bind the tool layer; only the
+         sandbox is OS-enforced); INFO when enabled without failIfUnavailable
 
 The model narrates this output; it does not change these verdicts.
 Stdlib only. Read-only except the optional --emit-json path. Never prints config values —
@@ -23,8 +25,63 @@ import re
 
 PLUGIN_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 SCHEMA_VERSION = 1
+TOOL_VERSION = "2"  # 2: AC-01 matches deny rules by meaning, not spelling; AC-07 added
 
-RECOMMENDED_DENY = ["Read(./.env)", "Read(./.env.*)", "Read(./secrets/**)"]
+# AC-01 targets, expressed as the path each recommended rule must cover. Per the Claude Code
+# permissions docs (code.claude.com/docs/en/permissions, "Read and Edit"), a bare filename in a
+# deny rule matches at any depth (`Read(.env)` == `Read(**/.env)`), `//**/x` matches anywhere on the
+# filesystem, and `./x` or `/x` anchor at the project root. All of those satisfy the requirement;
+# the any-depth spelling is what we recommend, because `./.env` leaves `app/.env` readable.
+RECOMMENDED_DENY_TARGETS = [".env", ".env.*", "secrets/**"]
+RECOMMENDED_DENY = [f"Read({t})" for t in RECOMMENDED_DENY_TARGETS]
+_DENY_PREFIXES = ("//**/", "**/", "./", "//", "/")
+# Representative paths each target must protect. A rule satisfies a target when its normalized
+# glob matches every probe (so a stronger glob such as `.env*` covers both `.env` and `.env.*`,
+# and `*` covers everything — which is true, if unwise).
+_TARGET_PROBES = {
+    ".env": [".env"],
+    ".env.*": [".env.local", ".env.production"],
+    "secrets/**": ["secrets/a.pem", "secrets/nested/b.key"],
+}
+
+
+def deny_rule_target(rule):
+    """Normalize a `Read(<pattern>)` deny rule to the path it protects, stripping the documented
+    anchor prefixes. Whitespace inside the parentheses is NOT trimmed: `Read( .env )` names a
+    path with spaces and protects nothing useful. Returns None for anything that is not a Read
+    rule."""
+    if not isinstance(rule, str):
+        return None
+    m = re.fullmatch(r"Read\((.+)\)", rule.strip())
+    if not m:
+        return None
+    pattern = m.group(1)
+    if pattern != pattern.strip() or not pattern:
+        return None
+    for prefix in _DENY_PREFIXES:
+        if pattern.startswith(prefix):
+            pattern = pattern[len(prefix):]
+            break
+    return pattern or None
+
+
+def _glob_covers(glob, relpath):
+    """gitignore-flavoured coverage: `**` spans directories, `*` a single segment."""
+    if glob == relpath:
+        return True
+    regex = re.escape(glob).replace(r"\*\*/", "(?:.*/)?").replace(r"\*\*", ".*").replace(r"\*", "[^/]*")
+    return re.fullmatch(regex, relpath) is not None
+
+
+def deny_target_satisfied(target, deny_rules):
+    """True when some deny rule covers every representative path of `target`."""
+    probes = _TARGET_PROBES.get(target, [target])
+    for rule in deny_rules:
+        glob = deny_rule_target(rule)
+        if glob and all(_glob_covers(glob, probe) for probe in probes):
+            return True
+    return False
+
 
 # Allow-rule prefixes that delegate arbitrary command execution to an inner runner:
 # Bash(npx *) effectively allows anything npx can fetch and run.
@@ -37,8 +94,9 @@ ENV_RUNNERS = [
 SECRETY_KEY = re.compile(r"(?i)(token|secret|password|passwd|pwd|credential|api[-_]?key|private[-_]?key)")
 
 SUBPROCESS_CAVEAT = (
-    "Note: deny rules are enforced by Claude Code, not the OS — subprocesses (scripts the agent "
-    "runs) can still read denied files. Only sandboxing enforces at the OS level."
+    "Note: Read deny rules bind Claude Code's file tools and the Bash file commands it recognizes "
+    "(cat, head, tail, sed, redirections), not `grep -r` or scripts that open files themselves. "
+    "Only the Bash sandbox enforces the same paths at the OS level (see AC-07)."
 )
 
 
@@ -88,22 +146,88 @@ def check_deny_rules(target, findings):
             perms = settings.get("permissions")
             if isinstance(perms, dict) and isinstance(perms.get("deny"), list):
                 deny += perms["deny"]
-    missing = [r for r in RECOMMENDED_DENY if r not in deny]
+    missing = [f"Read({t})" for t in RECOMMENDED_DENY_TARGETS
+               if not deny_target_satisfied(t, deny)]
     if missing:
         src = " and ".join(sources) if sources else "no .claude/settings*.json found"
         findings.append(finding(
             "AC-01",
             f"Missing {len(missing)} recommended secret deny rule(s) in project settings",
             "HIGH", "confirmed", ".claude/settings.json",
-            f"Recommended deny rules absent from project permissions ({src}): {', '.join(missing)}. "
-            "Without them, the agent can read secret files in this project.",
+            f"No deny rule covers {', '.join(missing)} in project permissions ({src}) under any "
+            "documented spelling (bare name, **/, ./, //**/). Without them, the agent can read "
+            "secret files in this project.",
             [
                 'Add to .claude/settings.json: {"permissions": {"deny": '
-                + json.dumps(missing) + "}}",
+                + json.dumps(missing) + "}} — bare names match at any depth; `./.env` would "
+                "cover only the project root.",
                 SUBPROCESS_CAVEAT,
             ],
             "missing-deny",
         ))
+
+
+def check_sandbox(target, home, findings):
+    """AC-07: is the Bash sandbox enabled anywhere Claude Code would honor it?
+
+    `sandbox.enabled` is a user- or managed-settings key (the /sandbox panel also writes the mode
+    to the project's settings.local.json). Project .claude/settings.json cannot turn it on, so a
+    repo cannot fix this finding for its users; the remediation targets ~/.claude/settings.json.
+    """
+    checked = []
+    enabled = False
+    fs_disabled = False
+    hard_gate = False
+    for path, label in (
+        (os.path.join(home, ".claude", "settings.json"), "~/.claude/settings.json"),
+        (os.path.join(target, ".claude", "settings.local.json"), ".claude/settings.local.json"),
+        (os.path.join(target, ".claude", "settings.json"), ".claude/settings.json"),
+    ):
+        data = read_json(path)
+        if isinstance(data, dict):
+            checked.append(label)
+            sandbox = data.get("sandbox")
+            if isinstance(sandbox, dict):
+                if sandbox.get("enabled") is True:
+                    enabled = True
+                if sandbox.get("failIfUnavailable") is True:
+                    hard_gate = True
+                fs = sandbox.get("filesystem")
+                if isinstance(fs, dict) and fs.get("disabled") is True:
+                    fs_disabled = True
+    if enabled and not fs_disabled:
+        if not hard_gate:
+            findings.append(finding(
+                "AC-07",
+                "Bash sandbox is on, but may silently fall back to unsandboxed when it cannot start",
+                "INFO", "confirmed", "~/.claude/settings.json",
+                "`sandbox.enabled` is true but `sandbox.failIfUnavailable` is not; if the sandbox "
+                "dependencies are missing Claude Code warns and runs commands unsandboxed.",
+                ['Add "failIfUnavailable": true under "sandbox" in ~/.claude/settings.json to make '
+                 "a missing sandbox a hard stop."],
+                "sandbox-soft",
+            ))
+        return
+    src = ", ".join(checked) if checked else "no Claude settings files found"
+    why = ("`sandbox.filesystem.disabled` is true, which removes the OS-level file boundary even "
+           "though the sandbox is enabled" if enabled and fs_disabled
+           else f"`sandbox.enabled` is not true in any settings file checked ({src})")
+    findings.append(finding(
+        "AC-07",
+        "Bash sandbox filesystem isolation is not enabled — deny rules are the only file boundary for Bash",
+        "MEDIUM", "confirmed", "~/.claude/settings.json",
+        f"{why}. Without filesystem isolation, Read deny rules apply to Claude's file tools and "
+        "recognized Bash file commands only; a script or `grep -r` run through Bash reads denied "
+        "files with the agent's OS permissions.",
+        [
+            'Enable it in user settings: ~/.claude/settings.json → {"sandbox": {"enabled": true}} '
+            "and do not set filesystem.disabled (macOS, Linux, WSL2; project settings cannot set "
+            "these keys).",
+            'Add "failIfUnavailable": true so Claude Code refuses to run unsandboxed when the '
+            "sandbox cannot start.",
+        ],
+        "sandbox-disabled",
+    ))
 
 
 def check_allow_rules(target, findings):
@@ -332,6 +456,7 @@ def main():
     check_allow_rules(target, findings)
     check_mcp_configs(target, home, findings)
     check_transcripts(home, findings)
+    check_sandbox(target, home, findings)
 
     for f in findings:
         f["citations"] = [citations[k]["display"] for k in checks[f["check_id"]]["citations"]]
@@ -357,7 +482,7 @@ def main():
         "schema_version": SCHEMA_VERSION,
         "skill": "ai-config-audit",
         "target": target,
-        "tools": {"permeval": "1"},
+        "tools": {"permeval": TOOL_VERSION},
         "findings": active,
         "unknowns": [unknown_retention()],
         "suppressed": suppressed,
