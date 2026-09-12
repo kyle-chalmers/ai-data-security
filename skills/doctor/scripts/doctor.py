@@ -14,6 +14,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -36,15 +37,22 @@ TOOLS = [
 ]
 
 
+_VERSION_TOKEN = re.compile(r"\bv?(\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.]{1,20})?)\b")
+
+
 def probe(binary, argv):
+    """Presence plus a narrowly validated version token. Child output is never rendered:
+    a PATH-shadowed binary could print anything, so only a `major.minor[.patch]` token that
+    matches _VERSION_TOKEN is retained."""
     path = shutil.which(binary)
     if not path:
         return {"present": False, "path": None, "version": None}
     version = None
     try:
-        out = subprocess.run(argv, capture_output=True, text=True, timeout=20)
-        version = (out.stdout or out.stderr).strip().splitlines()[0][:120] if (out.stdout or out.stderr) else None
-    except (OSError, subprocess.SubprocessError):
+        out = subprocess.run(argv, capture_output=True, text=True, errors="replace", timeout=20)
+        m = _VERSION_TOKEN.search((out.stdout or "") + " " + (out.stderr or ""))
+        version = m.group(1) if m else None
+    except (OSError, subprocess.SubprocessError, ValueError):
         version = None
     return {"present": True, "path": path, "version": version}
 
@@ -57,19 +65,28 @@ def registry_health():
             citations = json.load(f)["citations"]
         with open(os.path.join(PLUGIN_ROOT, "reference", "checks.yml"), encoding="utf-8") as f:
             checks = json.load(f)["checks"]
-    except (OSError, json.JSONDecodeError, KeyError) as exc:
-        return {"ok": False, "problems": [f"registry unreadable: {exc}"], "checks": 0, "citations": 0}
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return {"ok": False, "problems": ["registry unreadable or malformed"], "checks": 0, "citations": 0}
+    if not isinstance(citations, dict) or not isinstance(checks, dict):
+        return {"ok": False, "problems": ["registry has an unexpected shape"], "checks": 0, "citations": 0}
     for key, entry in citations.items():
+        if not isinstance(entry, dict):
+            problems.append(f"citation {key} is not an object")
+            continue
         for field in ("published", "accessed", "status"):
-            if not entry.get(field):
+            if not isinstance(entry.get(field), str) or not entry.get(field):
                 problems.append(f"citation {key} missing {field}")
         if entry.get("status") not in ("current", "superseded", "withdrawn"):
             problems.append(f"citation {key} has invalid status")
     for check_id, spec in checks.items():
-        for c in spec.get("citations", []):
+        if not isinstance(spec, dict):
+            problems.append(f"check {check_id} is not an object")
+            continue
+        cites = spec.get("citations") if isinstance(spec.get("citations"), list) else []
+        for c in cites:
             if c not in citations:
                 problems.append(f"check {check_id} cites unknown {c}")
-            elif citations[c].get("status") == "withdrawn":
+            elif isinstance(citations[c], dict) and citations[c].get("status") == "withdrawn":
                 problems.append(f"check {check_id} cites withdrawn {c}")
         if not spec.get("fixtures"):
             problems.append(f"check {check_id} has no fixture")
@@ -93,8 +110,8 @@ def evaluators_compile():
             with open(path, encoding="utf-8") as f:
                 compile(f.read(), path, "exec")
             results[rel] = "ok"
-        except (SyntaxError, OSError, UnicodeDecodeError) as exc:
-            results[rel] = f"error: {str(exc).splitlines()[0][:120]}"
+        except (SyntaxError, OSError, ValueError):
+            results[rel] = "error: does not compile or cannot be read"
     return results
 
 
@@ -104,7 +121,7 @@ def sandbox_posture(home):
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError):  # ValueError covers JSONDecodeError and UnicodeDecodeError
         return {"user_settings_found": False, "sandbox_enabled": False}
     sandbox = data.get("sandbox") if isinstance(data, dict) else None
     return {
@@ -165,8 +182,19 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--home", default=os.path.expanduser("~"))
     parser.add_argument("--format", choices=["text", "json"], default="text")
-    parser.add_argument("--emit-json", help="also write the JSON here")
+    parser.add_argument("--emit-json", help="also write the JSON here (same contract as the evaluators' --emit-json)")
     args = parser.parse_args()
+    try:
+        return _run(args)
+    except Exception:  # noqa: BLE001 — the matrix must always render; a degraded result beats a traceback
+        degraded = {"schema_version": SCHEMA_VERSION, "skill": "doctor", "degraded": True,
+                    "reason": "doctor hit an unexpected error; treat every capability as UNKNOWN"}
+        print(json.dumps(degraded, indent=2) if args.format == "json" else
+              "ai-data-security doctor: unexpected error — treat every capability as UNKNOWN and run dev/validate.sh")
+        return 0
+
+
+def _run(args):
 
     tools = {}
     for binary, argv, role, needed_by, info_only in TOOLS:
@@ -195,9 +223,12 @@ def main():
         "always_unknown": ["AC-06"],
     }
     if args.emit_json:
-        with open(args.emit_json, "w", encoding="utf-8") as fh:
-            json.dump(result, fh, indent=2)
-            fh.write("\n")
+        try:
+            with open(args.emit_json, "w", encoding="utf-8") as fh:
+                json.dump(result, fh, indent=2)
+                fh.write("\n")
+        except OSError:
+            result["emit_json_error"] = "could not write --emit-json path"
     if args.format == "json":
         print(json.dumps(result, indent=2))
     else:

@@ -13,16 +13,19 @@ Mapping
                            warehouse objects that are not paths go to logicalLocations
   fingerprint           -> partialFingerprints["ai-data-security/v1"]
   unknowns              -> notifications in invocation.toolExecutionNotifications (level: warning)
-  suppressed            -> results with suppressions[{kind: external, justification: reason}]
+  suppressed            -> results with suppressions[{kind: external}]; the free-text reason from
+                           .ai-data-security-ignore is NOT copied (it is user-written and unredacted)
 
 Evidence strings are copied as-is: the evaluators already redact values, and this tool adds no
-new content, so a SARIF file is exactly as shareable as the report it came from.
+new content and drops the one unredacted field (suppression reasons), so a SARIF file is as
+shareable as the report it came from.
 """
 
 import argparse
 import json
 import os
 import sys
+from urllib.parse import quote
 
 PLUGIN_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 LEVEL = {"CRITICAL": "error", "HIGH": "error", "MEDIUM": "warning", "LOW": "note", "INFO": "note"}
@@ -54,15 +57,24 @@ def rule_for(check_id, checks, citations):
     }
 
 
-def location_for(finding):
+LOGICAL_SKILLS = {"db-access-audit"}
+
+
+def _uri(path):
+    return quote(path, safe="/._-~")
+
+
+def location_for(finding, checks):
     obj = finding.get("file") or finding.get("object") or ""
-    if not obj:
+    if not isinstance(obj, str) or not obj:
         return []
-    looks_like_path = ("/" in obj or "." in obj) and " " not in obj and not obj.startswith("~")
-    if looks_like_path:
-        uri = obj.lstrip("./") or obj
-        return [{"physicalLocation": {"artifactLocation": {"uri": uri, "uriBaseId": "TARGET"}}}]
-    return [{"logicalLocations": [{"fullyQualifiedName": obj, "kind": "object"}]}]
+    skill = finding.get("skill") or checks.get(str(finding.get("check_id", "")), {}).get("skill")
+    if skill in LOGICAL_SKILLS or obj.startswith("~"):
+        return [{"logicalLocations": [{"fullyQualifiedName": obj, "kind": "object"}]}]
+    rel = obj.lstrip("/")
+    while rel.startswith("./"):
+        rel = rel[2:]
+    return [{"physicalLocation": {"artifactLocation": {"uri": _uri(rel or obj), "uriBaseId": "TARGET"}}}]
 
 
 def result_for(finding, checks, suppressed_reason=None):
@@ -78,8 +90,8 @@ def result_for(finding, checks, suppressed_reason=None):
         "ruleId": finding.get("check_id", "UNKNOWN"),
         "level": LEVEL.get(sev, "note"),
         "message": {"text": message},
-        "locations": location_for(finding),
-        "partialFingerprints": {"ai-data-security/v1": finding.get("fingerprint", "")},
+        "locations": location_for(finding, checks),
+        "partialFingerprints": {"ai-data-security/v1": str(finding.get("fingerprint") or "")},
         "properties": {
             "severity": sev,
             "confidence": finding.get("confidence"),
@@ -92,8 +104,9 @@ def result_for(finding, checks, suppressed_reason=None):
     if finding.get("exposure"):
         res["properties"]["exposure"] = finding["exposure"]
     if suppressed_reason is not None:
+        # The reason text is user-written and unredacted; never copy it into a shareable artifact.
         res["suppressions"] = [{"kind": "external", "status": "accepted",
-                                "justification": suppressed_reason or "suppressed via .ai-data-security-ignore"}]
+                                "justification": "suppressed via .ai-data-security-ignore (reason withheld; see that file)"}]
     return res
 
 
@@ -101,18 +114,32 @@ def convert(inputs, checks, citations, tool_version):
     results, rules_used, notifications = [], {}, []
     target = None
     for blob in inputs:
+        if not isinstance(blob, dict):
+            continue
         target = target or blob.get("target")
-        for f in blob.get("findings", []):
+        for f in blob.get("findings", []) if isinstance(blob.get("findings"), list) else []:
+            if not isinstance(f, dict):
+                continue
+            f = dict(f)
+            f.setdefault("skill", blob.get("skill"))
             results.append(result_for(f, checks))
-            rules_used[f.get("check_id", "UNKNOWN")] = True
+            rules_used[str(f.get("check_id", "UNKNOWN"))] = True
         for s in blob.get("suppressed", []):
-            check_id = (s.get("fingerprint") or "UNKNOWN").split(":", 1)[0]
+            if not isinstance(s, dict):
+                continue
+            fp = str(s.get("fingerprint") or "")
+            # fingerprint = <check_id>:<object>:<qualifier>; the object may itself contain ':'.
+            check_id, _, rest = fp.partition(":")
+            obj, _, _qualifier = rest.rpartition(":")
+            check_id = check_id or "UNKNOWN"
             pseudo = {"check_id": check_id, "title": s.get("title", f"suppressed {check_id}"),
-                      "severity": s.get("severity", "INFO"), "fingerprint": s.get("fingerprint", ""),
-                      "file": (s.get("fingerprint") or "::").split(":")[1] if s.get("fingerprint") else ""}
-            results.append(result_for(pseudo, checks, suppressed_reason=s.get("reason", "")))
+                      "severity": s.get("severity", "INFO"), "fingerprint": fp,
+                      "file": obj, "skill": blob.get("skill")}
+            results.append(result_for(pseudo, checks, suppressed_reason=""))
             rules_used[check_id] = True
-        for u in blob.get("unknowns", []):
+        for u in blob.get("unknowns", []) if isinstance(blob.get("unknowns"), list) else []:
+            if not isinstance(u, dict):
+                continue
             notifications.append({
                 "level": "warning",
                 "descriptor": {"id": u.get("check_id", "UNKNOWN")},
@@ -130,7 +157,7 @@ def convert(inputs, checks, citations, tool_version):
                 "version": tool_version,
                 "rules": rules,
             }},
-            "originalUriBaseIds": {"TARGET": {"uri": (target.rstrip("/") + "/") if target else "./"}},
+            "originalUriBaseIds": {"TARGET": {"uri": ("file://" + _uri(str(target).rstrip("/")) + "/") if target else "./"}},
             "invocations": [{"executionSuccessful": True, "toolExecutionNotifications": notifications}],
             "results": results,
         }],

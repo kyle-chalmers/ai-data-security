@@ -18,14 +18,19 @@ byte-identically to 0.2.0 except where a check was corrected below.
 - **`/ai-data-security:quick-check <path>`** — zero flags, three verdict lines (agent-readable
   secrets on disk, deny-rule and sandbox posture, Restricted/Confidential file counts) plus the
   full UNKNOWN list, reusing the existing evaluators with citations and fingerprints intact.
-  Says out loud what it does not do (no git history, no warehouse, AC-06 always UNKNOWN).
+  Says out loud what it does not do (no git history, no warehouse, AC-06 always UNKNOWN); a
+  suppressed finding is reported as suppressed, never as a pass; each lane has a 35-second
+  budget so the whole run stays under two minutes and a timeout becomes an UNKNOWN. Evaluator
+  stderr is never surfaced (fixed error categories only), keeping the evaluators as the
+  redaction boundary.
 - **AC-07 Bash sandbox posture** — reports when `sandbox.enabled` is not true in user settings or
   the project's `settings.local.json`. Deny rules bind Claude's file tools and recognized Bash
   file commands, not `grep -r` or scripts; only the sandbox enforces the same paths at the OS
   level (Claude Code permissions and sandboxing docs, verified 2026-09-11).
 - **SARIF 2.1.0 export** (`scripts/to_sarif.py`; `security-audit … --sarif <file>`): severities map
   to SARIF levels, UNKNOWNs become tool notifications, suppressions carry their reason, every
-  result carries the plugin fingerprint. Adds no content, so it is as shareable as the report.
+  result carries the plugin fingerprint. Adds no content and withholds the one unredacted field
+  (free-text suppression reasons), so it is as shareable as the report.
 - **Citation provenance** — every `reference/citations.yml` entry now records `published`,
   `accessed`, and `status` (`current | superseded | withdrawn`); CI fails a check that cites a
   withdrawn entry. New entries: OWASP Top 10 for Agentic Applications 2026 (ASI02, ASI03), OWASP

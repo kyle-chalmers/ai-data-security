@@ -58,6 +58,48 @@ else
   echo "OK: every citation carries provenance fields and no check cites a withdrawn entry"
 fi
 
+step "doctor without gitleaks (PATH mocked): secrets lane must be UNKNOWN, exit 0, no child output echoed"
+DOCTMP="$(mktemp -d)"
+NOGL_BIN="$DOCTMP/bin"; mkdir -p "$NOGL_BIN"
+ln -s "$(command -v python3)" "$NOGL_BIN/python3"
+# A hostile "psql" on PATH prints a secret-shaped line: doctor must not echo it as a version.
+printf '#!/bin/sh\necho "AKIAIOSFODNN7EXAMPLE token=hunter2 version 99.9.9"\n' > "$NOGL_BIN/psql"; chmod +x "$NOGL_BIN/psql"
+if PATH="$NOGL_BIN" python3 skills/doctor/scripts/doctor.py --home "$DOCTMP" --format json > "$DOCTMP/doc.json"; then
+  if jq -e '(.tools.gitleaks.present | not) and (.capabilities | any(.skill == "secrets-scanner" and .status == "UNKNOWN")) and (.tools.psql.version == "99.9.9") and ([tostring | test("AKIA|hunter2")] == [false])' "$DOCTMP/doc.json" >/dev/null; then
+    echo "OK: doctor without gitleaks -> secrets-scanner UNKNOWN; hostile tool output not echoed (version token only)"
+  else
+    echo "FAIL: doctor without gitleaks did not report UNKNOWN or echoed child output"; fail=1
+  fi
+else
+  echo "FAIL: doctor exited non-zero without gitleaks"; fail=1
+fi
+rm -rf "$DOCTMP"
+
+step "SARIF edge cases: colon-bearing DB fingerprint, suppression reason withheld, logical location for warehouse objects"
+SARTMP="$(mktemp -d)"
+cat > "$SARTMP/db.json" <<'JSON'
+{"schema_version":1,"skill":"db-access-audit","target":"snowflake://fixture","tools":{"eval_grants":"2"},
+ "findings":[{"check_id":"DB-03","title":"PII column readable","severity":"HIGH","confidence":"confirmed","object":"PROD.RAW.CUSTOMERS:EMAIL","evidence":"column readable","remediation":["mask it"],"citations":["x"],"fingerprint":"DB-03:PROD.RAW.CUSTOMERS:EMAIL:restricted"}],
+ "unknowns":[],
+ "suppressed":[{"fingerprint":"DB-01:PROD.RAW.ORDERS:INSERT","title":"write grant","severity":"CRITICAL","reason":"SECRET-REASON-VALUE-xyz","expires":null}]}
+JSON
+python3 scripts/to_sarif.py "$SARTMP/db.json" -o "$SARTMP/db.sarif"
+if jq -e '([tostring | test("SECRET-REASON-VALUE")] == [false])
+  and (.runs[0].results | any(.partialFingerprints["ai-data-security/v1"] == "DB-01:PROD.RAW.ORDERS:INSERT" and (.locations[0].logicalLocations[0].fullyQualifiedName == "PROD.RAW.ORDERS") and (.suppressions | length == 1)))
+  and (.runs[0].results | any(.ruleId == "DB-03" and (.locations[0].logicalLocations[0].fullyQualifiedName == "PROD.RAW.CUSTOMERS:EMAIL")))
+  and (.runs[0].originalUriBaseIds.TARGET.uri | endswith("/"))' "$SARTMP/db.sarif" >/dev/null; then
+  echo "OK: SARIF withholds suppression reasons, keeps colon-bearing objects intact, uses logical locations for DB objects"
+else
+  echo "FAIL: SARIF edge cases"; jq -c '.runs[0].results[] | {ruleId, loc:.locations[0], fp:.partialFingerprints}' "$SARTMP/db.sarif"; fail=1
+fi
+printf '[1, "not-an-object"]\n' > "$SARTMP/junk.json"
+if python3 scripts/to_sarif.py "$SARTMP/junk.json" -o "$SARTMP/junk.sarif" && jq -e '.runs[0].results == []' "$SARTMP/junk.sarif" >/dev/null; then
+  echo "OK: SARIF tolerates a malformed interchange blob (empty run, no crash)"
+else
+  echo "FAIL: SARIF crashed or produced results from junk input"; fail=1
+fi
+rm -rf "$SARTMP"
+
 if ! command -v gitleaks >/dev/null 2>&1; then
   echo "SKIP: gitleaks not installed — secrets fixture assertions skipped (install: brew install gitleaks)"
   exit "$fail"
@@ -438,6 +480,18 @@ if [ "$QC_ELAPSED" -lt 120 ]; then
 else
   echo "FAIL: quick-check took ${QC_ELAPSED}s (>= 120s)"; fail=1
 fi
+
+step "quick-check: a suppressed AC-01 is reported as suppressed, never as 'deny rules present'"
+python3 skills/quick-check/scripts/quick_check.py --target "$COMBINED" --home tests/fixtures/ai-config/home --emit-json "$TMP/qc0.json" >/dev/null
+AC01FP="$(jq -r '[.findings[] | select(.check_id == "AC-01")][0].fingerprint' "$TMP/qc0.json")"
+printf '%s reason=fixture\n' "$AC01FP" > "$COMBINED/.ai-data-security-ignore"
+python3 skills/quick-check/scripts/quick_check.py --target "$COMBINED" --home tests/fixtures/ai-config/home --emit-json "$TMP/out.json" >/dev/null
+rm -f "$COMBINED/.ai-data-security-ignore"
+assert "quick-check: verdict line 2 says the deny-rule finding is suppressed" \
+  '.verdicts[1] | test("deny-rule finding suppressed") and (test("deny rules present") | not)'
+assert "quick-check: SS-01 (history not scanned) is listed even when the secrets lane ran" \
+  '.unknowns | any(.check_id == "SS-01")'
+cp "$TMP/qc0.json" "$TMP/out.json"
 
 step "SARIF export: valid 2.1.0 shape, one rule per check, unknowns as notifications, no values"
 python3 scripts/to_sarif.py "$TMP/out.json" -o "$TMP/out.sarif"
