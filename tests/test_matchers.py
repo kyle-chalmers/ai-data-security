@@ -83,6 +83,22 @@ for target, rules, expected in [
     if got is not expected:
         failures.append(f"deny_target_satisfied({target!r}, {rules!r}) = {got}, expected {expected}")
 
+# DESCRIBE USER column-name variants and null-falls-back-to-default (Snowflake renders either
+# `value/default` or `property_value/property_default`; an unset DEFAULT_SECONDARY_ROLES means [ALL]).
+eval_grants_sf = load("eval_grants_sf", "skills/db-access-audit/scripts/eval_grants.py")
+desc_a = eval_grants_sf._desc_user([
+    {"property": "TYPE", "value": "SERVICE_AGENT", "default": "null"},
+    {"property": "DEFAULT_SECONDARY_ROLES", "value": "null", "default": "[ALL]"},
+])
+desc_b = eval_grants_sf._desc_user([
+    {"property": "TYPE", "property_type": "String", "property_value": "PERSON", "property_default": "null"},
+    {"property": "DEFAULT_SECONDARY_ROLES", "property_type": "String", "property_value": "[]", "property_default": "[ALL]"},
+])
+if desc_a.get("TYPE") != "SERVICE_AGENT" or "ALL" not in desc_a.get("DEFAULT_SECONDARY_ROLES", ""):
+    failures.append(f"_desc_user value/default variant: {desc_a}")
+if desc_b.get("TYPE") != "PERSON" or desc_b.get("DEFAULT_SECONDARY_ROLES") != "[]":
+    failures.append(f"_desc_user property_value variant: {desc_b}")
+
 # Fail-closed expiry: unparseable AND blank expires= must both count as expired.
 # Blank expires= (fail-open) was an edge-hardening finding — locked here across all evaluators.
 permeval = load("permeval", "skills/ai-config-audit/scripts/permeval.py")

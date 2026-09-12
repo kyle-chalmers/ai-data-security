@@ -44,7 +44,7 @@ The first run is the credibility test, so these ship together.
 | Hygiene: tag/release v0.3.0 (v0.2.0 was never tagged and is not back-tagged), GitHub description and topics, companion-repo link, Mission/Vision block | `docs/research/quick-wins.md` #1, #2, #4, #5, #10 (#7 `validate.sh` hardening already landed in PR #3) | README, repo settings | S | validate.sh green | v1 |
 | Hashing caveat text: any finding or remediation that mentions hashing states "pseudonymization, not anonymization" and points at keyed hashing or tokenization with the key outside the AI role's reach | C5 (S10, S61, S11, S55) | `db-access-audit/reference.md`, `four-tier-framework.md` | S | grep test that the phrase appears in rendered fixture reports | v1 |
 
-## v0.4 — Decision-quality DB audit (**fix** groundwork + **credibility**)
+## v0.4 — Decision-quality DB audit (**fix** groundwork + **credibility**) — shipped 2026-09-12 as v0.4.0
 
 Make DB findings name a remediable boundary and say what they could not see.
 

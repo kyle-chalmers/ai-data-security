@@ -1,0 +1,15 @@
+-- FIXTURE: recorded output of `snow sql -D "user=AI_AGENT" -f audit_quality.sql` (auditor holds
+-- SNOWFLAKE.SECURITY_VIEWER). Nobody has been granted the GOVERNANCE_VIEWER database role.
+-- Statement 1: SELECT ... FROM SNOWFLAKE.ACCOUNT_USAGE.GRANTS_TO_ROLES WHERE name = 'GOVERNANCE_VIEWER'
++--------------+------------+------+------------+-----------+
+| GRANTEE_NAME | GRANTED_TO | NAME | GRANTED_ON | PRIVILEGE |
+|--------------+------------+------+------------+-----------|
++--------------+------------+------+------------+-----------+
+0 Row(s) produced.
+
+-- Statement 2: SHOW PARAMETERS LIKE 'USE_CACHED_RESULT' IN USER AI_AGENT
++-------------------+-------+---------+---------+-------------------------------------------+---------+
+| key               | value | default | level   | description                               | type    |
+|-------------------+-------+---------+---------+-------------------------------------------+---------|
+| USE_CACHED_RESULT | true  | true    |         | If enabled, query results can be reused.  | BOOLEAN |
++-------------------+-------+---------+---------+-------------------------------------------+---------+
