@@ -1,0 +1,23 @@
+version: 2
+sources:
+  - name: app
+    tables:
+      - name: customers
+        columns:
+          - name: customer_id
+          - name: email
+            meta:
+              contains_pii: true
+          - name: ssn
+            # untagged Restricted-pattern column: DBT-02
+models:
+  - name: stg_customers
+    columns:
+      - name: customer_id
+      - name: email
+        meta:
+          contains_pii: true
+      - name: phone_number
+        # likely PII, no tag: DBT-02
+      - name: emailed_at
+        # must not match: 'email' is not a whole token

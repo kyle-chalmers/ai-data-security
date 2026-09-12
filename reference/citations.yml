@@ -160,6 +160,13 @@
       "published": "live doc",
       "accessed": "2026-09-11",
       "status": "current"
+    },
+    "mcp-sbp-local-server": {
+      "display": "MCP Security Best Practices (2026-07-28): Local MCP Server Compromise (show the exact startup command; sandbox local servers)",
+      "url": "https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices",
+      "published": "2026-07-28",
+      "accessed": "2026-09-11",
+      "status": "current"
     }
   }
 }

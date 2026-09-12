@@ -134,6 +134,55 @@
         "ai-config-hardened"
       ]
     },
+    "AC-08": {
+      "skill": "ai-config-audit",
+      "title": "Private data sources and external channels both configured (capability inventory; INFO)",
+      "citations": [
+        "owasp-asi02",
+        "owasp-agent-cheat-sheet"
+      ],
+      "fixtures": [
+        "ai-config",
+        "ai-config-hardened"
+      ]
+    },
+    "AC-09": {
+      "skill": "ai-config-audit",
+      "title": "MCP server runs an unpinned package (npx/uvx/@latest/mutable ref)",
+      "citations": [
+        "mcp-sbp-local-server",
+        "owasp-mcp-cheat-sheet"
+      ],
+      "fixtures": [
+        "ai-config",
+        "ai-config-hardened"
+      ]
+    },
+    "AC-10": {
+      "skill": "ai-config-audit",
+      "title": "Warehouse MCP server is write-capable by its own configuration (or its config could not be found → UNKNOWN)",
+      "citations": [
+        "owasp-asi02",
+        "owasp-llm06",
+        "owasp-asi03"
+      ],
+      "fixtures": [
+        "ai-config",
+        "ai-config-hardened"
+      ]
+    },
+    "AC-11": {
+      "skill": "ai-config-audit",
+      "title": "Local sensitive sinks: DuckDB persistent secrets, credential-shaped literals in warehouse CLI configs, shell history without a deny rule",
+      "citations": [
+        "owasp-llm02",
+        "owasp-mcp-cheat-sheet"
+      ],
+      "fixtures": [
+        "ai-config",
+        "ai-config-hardened"
+      ]
+    },
     "DC-01": {
       "skill": "data-classification",
       "title": "Validated Restricted-tier content on disk (SSN/PAN validators fired)",
@@ -300,6 +349,50 @@
       "fixtures": [
         "postgres-fixture",
         "snowflake-recorded"
+      ]
+    },
+    "DBT-01": {
+      "skill": "dbt-governance-audit",
+      "title": "Exposure consumes PII-tagged dbt model(s) with no masking layer declared",
+      "citations": [
+        "nist-sp800-122",
+        "owasp-llm02",
+        "owasp-asi03"
+      ],
+      "fixtures": [
+        "dbt-project"
+      ]
+    },
+    "DBT-02": {
+      "skill": "dbt-governance-audit",
+      "title": "Likely-PII dbt columns carry no PII tag (declaration gap; not proof of no PII)",
+      "citations": [
+        "nist-sp800-122",
+        "owasp-llm02"
+      ],
+      "fixtures": [
+        "dbt-project"
+      ]
+    },
+    "DBT-03": {
+      "skill": "dbt-governance-audit",
+      "title": "dbt YAML could not be parsed (UNKNOWN, fail-closed)",
+      "citations": [
+        "nist-sp800-122"
+      ],
+      "fixtures": [
+        "dbt-project"
+      ]
+    },
+    "DBT-04": {
+      "skill": "dbt-governance-audit",
+      "title": "Masking packages declared in packages.yml (INFO inventory)",
+      "citations": [
+        "nist-sp800-188",
+        "nist-sp800-122"
+      ],
+      "fixtures": [
+        "dbt-project"
       ]
     }
   }

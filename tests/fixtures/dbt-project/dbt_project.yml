@@ -1,0 +1,5 @@
+# FIXTURE — a small dbt project for dbt-governance-audit tests. No warehouse connection is used.
+name: analytics
+version: '1.0.0'
+profile: analytics
+model-paths: ["models"]

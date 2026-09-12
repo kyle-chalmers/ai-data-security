@@ -1,0 +1,10 @@
+{
+  "$comment": "FIXTURE — VS Code / Copilot MCP config (servers key). Credential-shaped literal by key name (AC-03); value is an inert placeholder.",
+  "servers": {
+    "bi-api": {
+      "type": "http",
+      "url": "https://bi.example.invalid/mcp",
+      "headers": {"Authorization": "Bearer placeholder-not-a-real-value"}
+    }
+  }
+}

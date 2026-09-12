@@ -1,0 +1,22 @@
+# FIXTURE — Snowflake MCP service config (Snowflake-Labs/mcp shape). Writes are enabled: AC-10.
+agent_services: []
+search_services: []
+sql_statement_permissions:
+  - Alter: False
+  - Command: True
+  - Comment: False
+  - Commit: False
+  - Copy: False
+  - Create: False
+  - Delete: True
+  - Describe: True
+  - Drop: False
+  - Insert: True
+  - Merge: False
+  - Rollback: False
+  - Select: True
+  - Transaction: False
+  - TruncateTable: False
+  - Unknown: True
+  - Update: False
+  - Use: True
