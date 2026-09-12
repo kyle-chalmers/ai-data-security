@@ -11,3 +11,5 @@ tests/fixtures/generated/
 # Local, per-user config (bring-your-own-connection defaults, etc.)
 ai-data-security.local.md
 .claude/settings.local.json
+
+prompts/

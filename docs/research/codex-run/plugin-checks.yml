@@ -1,0 +1,125 @@
+{
+  "$comment": "Registry mapping every ai-data-security check to its citations and the fixture(s) proving it fires. CI fails a check that lacks a citation key present in citations.yml or a fixture id. Fixture ids beginning with 'manual-' are procedure-documented checks that cannot run in CI (documented in the owning skill's reference.md). This file is JSON written in a .yml file so jq can validate it with zero dependencies (JSON is a subset of YAML).",
+  "checks": {
+    "SS-01": {
+      "skill": "secrets-scanner",
+      "title": "Secret present in git history (local only)",
+      "citations": ["owasp-llm02"],
+      "fixtures": ["secrets-generated"]
+    },
+    "SS-02": {
+      "skill": "secrets-scanner",
+      "title": "Secret on disk, covered by a permission deny rule (still readable by subprocesses)",
+      "citations": ["owasp-llm02", "claude-code-security"],
+      "fixtures": ["secrets-generated-denied"]
+    },
+    "SS-03": {
+      "skill": "secrets-scanner",
+      "title": "Secret on disk and agent-readable (no permission deny rule covers it)",
+      "citations": ["owasp-llm02", "claude-code-security"],
+      "fixtures": ["secrets-generated"]
+    },
+    "SS-04": {
+      "skill": "secrets-scanner",
+      "title": "Secret pushed to a git remote (rotate first)",
+      "citations": ["owasp-llm02"],
+      "fixtures": ["secrets-generated-remote"]
+    },
+    "SS-05": {
+      "skill": "secrets-scanner",
+      "title": "Secrets scan could not run (gitleaks unavailable or scan error)",
+      "citations": ["owasp-llm02"],
+      "fixtures": ["manual-uninstalled-tool"]
+    },
+    "AC-01": {
+      "skill": "ai-config-audit",
+      "title": "Missing recommended secret deny rules in project Claude settings",
+      "citations": ["claude-code-security", "owasp-llm02"],
+      "fixtures": ["ai-config", "ai-config-hardened"]
+    },
+    "AC-02": {
+      "skill": "ai-config-audit",
+      "title": "Allow rule grants arbitrary execution via an env-runner wildcard",
+      "citations": ["owasp-llm06", "claude-code-security"],
+      "fixtures": ["ai-config", "ai-config-hardened"]
+    },
+    "AC-03": {
+      "skill": "ai-config-audit",
+      "title": "Credential-shaped literal value in an MCP server config",
+      "citations": ["owasp-llm02", "mcp-sbp-scope-minimization"],
+      "fixtures": ["ai-config"]
+    },
+    "AC-04": {
+      "skill": "ai-config-audit",
+      "title": "MCP server configured with trust:true (bypasses tool-call confirmations)",
+      "citations": ["owasp-llm06", "mcp-sbp-confused-deputy"],
+      "fixtures": ["ai-config"]
+    },
+    "AC-05": {
+      "skill": "ai-config-audit",
+      "title": "Plaintext session transcripts on disk",
+      "citations": ["claude-data-usage"],
+      "fixtures": ["ai-config"]
+    },
+    "AC-06": {
+      "skill": "ai-config-audit",
+      "title": "Consumer retention/training tier is not locally auditable (always UNKNOWN)",
+      "citations": ["claude-data-usage"],
+      "fixtures": ["ai-config"]
+    },
+    "DC-01": {
+      "skill": "data-classification",
+      "title": "Validated Restricted-tier content on disk (SSN/PAN validators fired)",
+      "citations": ["nist-sp800-122", "owasp-llm02"],
+      "fixtures": ["classify-repo"]
+    },
+    "DC-02": {
+      "skill": "data-classification",
+      "title": "Confidential-tier content on disk (validated emails or PII columns)",
+      "citations": ["nist-sp800-122", "owasp-llm02"],
+      "fixtures": ["classify-repo"]
+    },
+    "DC-03": {
+      "skill": "data-classification",
+      "title": "Classification could not run over part of the target (unreadable content)",
+      "citations": ["nist-sp800-122"],
+      "fixtures": ["manual-unreadable-target"]
+    },
+    "DB-01": {
+      "skill": "db-access-audit",
+      "title": "AI principal holds write privileges (INSERT/UPDATE/DELETE/TRUNCATE)",
+      "citations": ["owasp-llm06", "atlas-aml-t0053"],
+      "fixtures": ["postgres-fixture", "snowflake-recorded"]
+    },
+    "DB-02": {
+      "skill": "db-access-audit",
+      "title": "AI principal reads base tables directly instead of governed views",
+      "citations": ["owasp-llm06", "nist-sp800-122"],
+      "fixtures": ["postgres-fixture", "snowflake-recorded"]
+    },
+    "DB-03": {
+      "skill": "db-access-audit",
+      "title": "PII-named columns readable unmasked by the AI principal",
+      "citations": ["nist-sp800-122", "owasp-llm02", "atlas-aml-t0057"],
+      "fixtures": ["postgres-fixture", "snowflake-recorded"]
+    },
+    "DB-04": {
+      "skill": "db-access-audit",
+      "title": "No masked/governed view layer detected",
+      "citations": ["nist-sp800-122"],
+      "fixtures": ["postgres-fixture", "snowflake-recorded"]
+    },
+    "DB-05": {
+      "skill": "db-access-audit",
+      "title": "No audit trail of the AI principal's queries",
+      "citations": ["nist-ai-600-1"],
+      "fixtures": ["postgres-fixture", "snowflake-recorded"]
+    },
+    "DB-06": {
+      "skill": "db-access-audit",
+      "title": "DB audit could not run or principal unconfirmed (UNKNOWN / confidence cap)",
+      "citations": ["nist-sp800-122"],
+      "fixtures": ["postgres-fixture"]
+    }
+  }
+}
