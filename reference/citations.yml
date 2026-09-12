@@ -1,53 +1,137 @@
 {
-  "$comment": "The ONLY citation IDs ai-data-security findings may use. Every entry was verified against its live source before being added; do not add entries from memory. This file is JSON written in a .yml file \u2014 JSON is a subset of YAML, and keeping it JSON lets dev/validate.sh and CI check it with jq alone (no YAML parser dependency). Entries must be either referenced by checks.yml or cited in shipped prose (SECURITY.md trust model cites owasp-llm01 and atlas-aml-t0051-001); anything else is removed until a check needs it.",
+  "$comment": "The ONLY citation IDs ai-data-security findings may use. Every entry was verified against its live source before being added; do not add entries from memory. Each entry records `published` (source date, or 'live doc' for undated vendor pages), `accessed` (the date it was last verified by a maintainer), and `status` (current | superseded | withdrawn); CI fails a check that cites a withdrawn entry. This file is JSON written in a .yml file so dev/validate.sh and CI can check it with jq alone. Entries must be either referenced by checks.yml or cited in shipped prose (SECURITY.md cites owasp-llm01 and atlas-aml-t0051-001).",
   "citations": {
     "owasp-llm01": {
       "display": "OWASP LLM01:2025 Prompt Injection",
-      "url": "https://genai.owasp.org/llm-top-10/"
+      "url": "https://genai.owasp.org/llm-top-10/",
+      "published": "2025-11-17",
+      "accessed": "2026-09-11",
+      "status": "current",
+      "note": "OWASP published a 2026 edition on 2026-08-03; these 2025 IDs stay current until the 2026 renumbering is verified against its PDF."
     },
     "owasp-llm02": {
       "display": "OWASP LLM02:2025 Sensitive Information Disclosure",
-      "url": "https://genai.owasp.org/llm-top-10/"
+      "url": "https://genai.owasp.org/llm-top-10/",
+      "published": "2025-11-17",
+      "accessed": "2026-09-11",
+      "status": "current",
+      "note": "OWASP published a 2026 edition on 2026-08-03; these 2025 IDs stay current until the 2026 renumbering is verified against its PDF."
     },
     "owasp-llm06": {
       "display": "OWASP LLM06:2025 Excessive Agency",
-      "url": "https://genai.owasp.org/llm-top-10/"
+      "url": "https://genai.owasp.org/llm-top-10/",
+      "published": "2025-11-17",
+      "accessed": "2026-09-11",
+      "status": "current",
+      "note": "OWASP published a 2026 edition on 2026-08-03; these 2025 IDs stay current until the 2026 renumbering is verified against its PDF."
     },
     "atlas-aml-t0051-001": {
       "display": "MITRE ATLAS AML.T0051.001 LLM Prompt Injection: Indirect",
-      "url": "https://atlas.mitre.org/techniques/AML.T0051.001"
+      "url": "https://atlas.mitre.org/techniques/AML.T0051.001",
+      "published": "live catalog",
+      "accessed": "2026-07-07",
+      "status": "current",
+      "note": "Technique pages returned 404 to the 2026-09-11 fetcher; re-verify against atlas.mitre.org before the next release."
     },
     "atlas-aml-t0057": {
       "display": "MITRE ATLAS AML.T0057 LLM Data Leakage",
-      "url": "https://atlas.mitre.org/techniques/AML.T0057"
+      "url": "https://atlas.mitre.org/techniques/AML.T0057",
+      "published": "live catalog",
+      "accessed": "2026-07-07",
+      "status": "current",
+      "note": "Technique pages returned 404 to the 2026-09-11 fetcher; re-verify against atlas.mitre.org before the next release."
     },
     "atlas-aml-t0053": {
       "display": "MITRE ATLAS AML.T0053 AI Agent Tool Invocation",
-      "url": "https://atlas.mitre.org/techniques/AML.T0053"
+      "url": "https://atlas.mitre.org/techniques/AML.T0053",
+      "published": "live catalog",
+      "accessed": "2026-07-07",
+      "status": "current",
+      "note": "Technique pages returned 404 to the 2026-09-11 fetcher; re-verify against atlas.mitre.org before the next release."
     },
     "mcp-sbp-confused-deputy": {
-      "display": "MCP Security Best Practices: Confused Deputy Problem",
-      "url": "https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices"
+      "display": "MCP Security Best Practices (2026-07-28): Confused Deputy Problem",
+      "url": "https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices",
+      "published": "2026-07-28",
+      "accessed": "2026-09-11",
+      "status": "current"
     },
     "mcp-sbp-scope-minimization": {
-      "display": "MCP Security Best Practices: Scope Minimization",
-      "url": "https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices"
+      "display": "MCP Security Best Practices (2026-07-28): Scope Minimization",
+      "url": "https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices",
+      "published": "2026-07-28",
+      "accessed": "2026-09-11",
+      "status": "current"
     },
     "nist-sp800-122": {
       "display": "NIST SP 800-122 (PII confidentiality impact levels)",
-      "url": "https://csrc.nist.gov/pubs/sp/800/122/final"
+      "url": "https://csrc.nist.gov/pubs/sp/800/122/final",
+      "published": "2010-04",
+      "accessed": "2026-09-11",
+      "status": "current"
     },
     "nist-ai-600-1": {
       "display": "NIST AI 600-1 Generative AI Profile",
-      "url": "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf"
+      "url": "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf",
+      "published": "2024-07",
+      "accessed": "2026-09-11",
+      "status": "current"
     },
     "claude-data-usage": {
       "display": "Claude Code docs: Data usage & retention",
-      "url": "https://code.claude.com/docs/en/data-usage"
+      "url": "https://code.claude.com/docs/en/data-usage",
+      "published": "live doc",
+      "accessed": "2026-09-11",
+      "status": "current"
     },
     "claude-code-security": {
       "display": "Claude Code docs: Security (permission rules)",
-      "url": "https://code.claude.com/docs/en/security"
+      "url": "https://code.claude.com/docs/en/security",
+      "published": "live doc",
+      "accessed": "2026-07-07",
+      "status": "current"
+    },
+    "claude-code-permissions": {
+      "display": "Claude Code docs: Configure permissions (Read/Edit rule semantics; deny-rule scope)",
+      "url": "https://code.claude.com/docs/en/permissions",
+      "published": "live doc",
+      "accessed": "2026-09-11",
+      "status": "current"
+    },
+    "claude-code-sandboxing": {
+      "display": "Claude Code docs: Configure the sandboxed Bash tool",
+      "url": "https://code.claude.com/docs/en/sandboxing",
+      "published": "live doc",
+      "accessed": "2026-09-11",
+      "status": "current"
+    },
+    "owasp-asi02": {
+      "display": "OWASP ASI02:2026 Tool Misuse (Top 10 for Agentic Applications)",
+      "url": "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/",
+      "published": "2025-12-09",
+      "accessed": "2026-09-11",
+      "status": "current"
+    },
+    "owasp-asi03": {
+      "display": "OWASP ASI03:2026 Identity & Privilege Abuse (Top 10 for Agentic Applications)",
+      "url": "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/",
+      "published": "2025-12-09",
+      "accessed": "2026-09-11",
+      "status": "current"
+    },
+    "owasp-agent-cheat-sheet": {
+      "display": "OWASP AI Agent Security Cheat Sheet (least privilege, logging, testing after change)",
+      "url": "https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html",
+      "published": "live doc",
+      "accessed": "2026-09-11",
+      "status": "current"
+    },
+    "owasp-mcp-cheat-sheet": {
+      "display": "OWASP MCP Security Cheat Sheet (per-server scoped credentials; no plaintext tokens in MCP config)",
+      "url": "https://cheatsheetseries.owasp.org/cheatsheets/MCP_Security_Cheat_Sheet.html",
+      "published": "live doc",
+      "accessed": "2026-09-11",
+      "status": "current"
     }
   }
 }

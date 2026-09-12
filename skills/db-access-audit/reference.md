@@ -57,13 +57,21 @@ Snowflake notes that matter:
   recorded fixtures in `tests/fixtures/snowflake/`, not a live CI account. The report header
   must say "Snowflake support: fixture-validated".
 
-## Remediation target state (the v2 safe-db-access recipe)
+## Remediation target state (the safe-db-access recipe; planner approved as a SPEC amendment 2026-09-11)
 
-1. Dedicated AI service principal, no interactive human sharing it.
+1. Dedicated AI service principal, no interactive human sharing it. On Snowflake create it with
+   `TYPE = SERVICE_AGENT` (GA 2026-07-23) or `SERVICE`, and `DEFAULT_SECONDARY_ROLES = ()`, so
+   secondary roles cannot widen the session.
 2. `USAGE` on one curated schema only; `SELECT` on masked views only — email hashed, account
-   last-4, SSN omitted.
-3. Per-row salted hashing where joins are needed; the salt table lives in a schema the AI role
-   cannot read.
+   last-4, SSN omitted. Prefer the platform's masking policy where the edition allows it
+   (Snowflake DDM is Enterprise+); a policy body can call `IS_AGENT_ACTIVATED()` to withhold
+   regulated data from agent sessions.
+3. Where joins need a stable identifier, use a **keyed** hash (HMAC) or tokenization with the key
+   held outside the AI role's reach, not a salt table in a schema the same account can read.
+   **Hashed identifiers are pseudonymized, not anonymized**: NIST SP 800-188 §4.3.2 says unkeyed
+   hashing "generally does not confer security because an attacker can brute force" low-entropy
+   values, and the EDPB's Guidelines 01/2025 treat pseudonymised data as personal data whose key
+   must be kept separately. Say this in every remediation that mentions hashing.
 4. Audit logging of the AI role's queries, reviewed by a named owner.
 5. A validation script proving analytics still work AND raw base-table access is refused at the
    database layer.
