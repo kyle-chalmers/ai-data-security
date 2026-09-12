@@ -1,3 +1,4 @@
 rolname,rolcanlogin,rolsuper,rolbypassrls
 ai_agent,t,f,f
+analyst_group,f,f,f
 postgres,t,t,t

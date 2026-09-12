@@ -1,0 +1,7 @@
+-- FIXTURE: recorded output of `snow sql -D "db=ANALYTICS" -f policy_references.sql` (auditor
+-- holds SNOWFLAKE.GOVERNANCE_VIEWER). Zero policies are attached anywhere in ANALYTICS.
++-----------+---------------+-------------+-------------+-------------------+-----------------+-----------------+-----------------+---------------+
+| POLICY_DB | POLICY_SCHEMA | POLICY_NAME | POLICY_KIND | REF_DATABASE_NAME | REF_SCHEMA_NAME | REF_ENTITY_NAME | REF_COLUMN_NAME | POLICY_STATUS |
+|-----------+---------------+-------------+-------------+-------------------+-----------------+-----------------+-----------------+---------------|
++-----------+---------------+-------------+-------------+-------------------+-----------------+-----------------+-----------------+---------------+
+0 Row(s) produced.

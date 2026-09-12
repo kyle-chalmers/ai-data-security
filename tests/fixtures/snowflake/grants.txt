@@ -9,4 +9,6 @@
 | 2026-05-01 09:00:03.000 -0700 | INSERT    | TABLE      | ANALYTICS.APP.CUSTOMERS | ROLE       | AI_AGENT     | false        | SYSADMIN   |
 | 2026-05-01 09:00:04.000 -0700 | UPDATE    | TABLE      | ANALYTICS.APP.CUSTOMERS | ROLE       | AI_AGENT     | false        | SYSADMIN   |
 | 2026-05-01 09:00:05.000 -0700 | SELECT    | TABLE      | ANALYTICS.APP.ORDERS    | ROLE       | AI_AGENT     | false        | SYSADMIN   |
+| 2026-05-01 09:00:06.000 -0700 | USAGE     | STAGE      | ANALYTICS.APP.EXPORTS   | ROLE       | AI_AGENT     | false        | SYSADMIN   |
+| 2026-05-01 09:00:07.000 -0700 | USAGE     | ROLE       | ANALYST                 | ROLE       | AI_AGENT     | false        | SYSADMIN   |
 +-------------------------------+-----------+------------+-------------------------+------------+--------------+--------------+------------+

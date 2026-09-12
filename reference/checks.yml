@@ -237,6 +237,70 @@
       "fixtures": [
         "postgres-fixture"
       ]
+    },
+    "DB-ID-01": {
+      "skill": "db-access-audit",
+      "title": "AI principal's effective identity is wider than its role (user type, secondary roles, ownership, inheritance, superuser/BYPASSRLS)",
+      "citations": [
+        "owasp-asi03",
+        "snowflake-agent-identity",
+        "snowflake-access-control"
+      ],
+      "fixtures": [
+        "postgres-fixture",
+        "snowflake-recorded"
+      ]
+    },
+    "DB-07": {
+      "skill": "db-access-audit",
+      "title": "Raw-to-curated boundary crossed by an indirect path (inherited role grants, PUBLIC grants, default privileges)",
+      "citations": [
+        "owasp-asi03",
+        "nist-sp800-122",
+        "snowflake-access-control"
+      ],
+      "fixtures": [
+        "postgres-fixture",
+        "snowflake-recorded"
+      ]
+    },
+    "DB-08": {
+      "skill": "db-access-audit",
+      "title": "No governed control (masking policy / label) attached to PII columns the AI principal can read",
+      "citations": [
+        "nist-sp800-122",
+        "nist-sp800-188",
+        "atlas-aml-t0057"
+      ],
+      "fixtures": [
+        "postgres-fixture",
+        "snowflake-recorded"
+      ]
+    },
+    "DB-09": {
+      "skill": "db-access-audit",
+      "title": "Audit trail of the AI principal has known blind spots (unreadable, unconfigured, or cache-skipped)",
+      "citations": [
+        "owasp-agent-cheat-sheet",
+        "nist-ai-600-1"
+      ],
+      "fixtures": [
+        "postgres-fixture",
+        "snowflake-recorded"
+      ]
+    },
+    "DB-10": {
+      "skill": "db-access-audit",
+      "title": "AI principal has paths outside the database (server file/program roles, foreign servers, stages, integrations)",
+      "citations": [
+        "owasp-asi02",
+        "atlas-aml-t0053",
+        "postgres-predefined-roles"
+      ],
+      "fixtures": [
+        "postgres-fixture",
+        "snowflake-recorded"
+      ]
     }
   }
 }

@@ -1,0 +1,14 @@
+kind,name,detail
+attr,rolbypassrls,false
+attr,rolcanlogin,true
+attr,rolcreatedb,false
+attr,rolcreaterole,false
+attr,rolinherit,true
+attr,rolreplication,false
+attr,rolsuper,false
+default_acl,app:tables,SELECT
+inherited_grant,app.customers,analyst_group:SELECT
+inherited_grant,app.orders,analyst_group:SELECT
+member_of,analyst_group,inherit
+member_of,pg_write_server_files,inherit
+public_grant,app.orders,SELECT

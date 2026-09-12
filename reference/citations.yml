@@ -132,6 +132,34 @@
       "published": "live doc",
       "accessed": "2026-09-11",
       "status": "current"
+    },
+    "snowflake-agent-identity": {
+      "display": "Snowflake docs: Agent identity (SERVICE_AGENT users, agent-marked sessions; GA 2026-07-23)",
+      "url": "https://docs.snowflake.com/en/user-guide/agent-identity",
+      "published": "2026-07-23",
+      "accessed": "2026-09-11",
+      "status": "current"
+    },
+    "snowflake-access-control": {
+      "display": "Snowflake docs: Overview of Access Control (primary/secondary roles aggregate privileges)",
+      "url": "https://docs.snowflake.com/en/user-guide/security-access-control-overview",
+      "published": "live doc",
+      "accessed": "2026-09-11",
+      "status": "current"
+    },
+    "nist-sp800-188": {
+      "display": "NIST SP 800-188 De-Identifying Government Datasets §4.3.2 (hashing direct identifiers is not recommended)",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-188.pdf",
+      "published": "2023-09",
+      "accessed": "2026-09-11",
+      "status": "current"
+    },
+    "postgres-predefined-roles": {
+      "display": "PostgreSQL docs: Predefined Roles (pg_write_server_files / pg_execute_server_program bypass database permission checks)",
+      "url": "https://www.postgresql.org/docs/current/predefined-roles.html",
+      "published": "live doc",
+      "accessed": "2026-09-11",
+      "status": "current"
     }
   }
 }

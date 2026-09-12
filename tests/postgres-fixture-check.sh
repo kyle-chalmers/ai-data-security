@@ -86,9 +86,11 @@ fi
 
 echo "evaluating verdicts (principal confirmed)..."
 EVAL_OUT="$OUT/eval.json"
+V04_ARGS=(--identity "$OUT/identity.csv" --policies "$OUT/policy_attachment.csv"
+          --external "$OUT/external_paths.csv" --audit-quality "$OUT/audit_quality.csv")
 python3 skills/db-access-audit/scripts/eval_grants.py \
   --grants "$OUT/grants.csv" --pii "$OUT/pii_columns.csv" \
-  --views "$OUT/masked_views.csv" --settings "$OUT/audit_logging.csv" \
+  --views "$OUT/masked_views.csv" --settings "$OUT/audit_logging.csv" "${V04_ARGS[@]}" \
   --role ai_agent --principal-confirmed --emit-json "$EVAL_OUT"
 
 assert() {
@@ -109,11 +111,25 @@ assert "DB-04: no masked-view layer" '.findings | any(.check_id == "DB-04")'
 assert "DB-05: no audit logging" '.findings | any(.check_id == "DB-05")'
 assert "no row data in output (fixture has no data, and no SELECT * anywhere)" \
   '[tostring | test("fixture-placeholder")] == [false]'
+assert "DB-ID-01 HIGH: ai_agent inherits analyst_group (INHERIT), not super/bypassrls" \
+  '.findings | any(.check_id == "DB-ID-01" and .severity == "HIGH" and (.evidence | test("analyst_group")) and (.evidence | test("rolsuper") | not))'
+assert "DB-07 HIGH: indirect paths — inherited SELECT on app.customers + default privileges" \
+  '.findings | any(.check_id == "DB-07" and .severity == "HIGH" and (.evidence | test("inherited_grant app.customers via analyst_group:SELECT")) and (.evidence | test("default privileges")))'
+assert "DB-08 HIGH: readable PII columns carry no masking label; anon not installed" \
+  '.findings | any(.check_id == "DB-08" and .severity == "HIGH" and (.evidence | test("ssn")) and (.evidence | test("no masking mechanism")))'
+assert "DB-09 MEDIUM: pgaudit not loaded, no per-role logging, collector off" \
+  '.findings | any(.check_id == "DB-09" and .severity == "MEDIUM" and (.evidence | test("pgaudit is not loaded")) and (.evidence | test("logging_collector=off")))'
+assert "DB-10 CRITICAL: pg_write_server_files membership" \
+  '.findings | any(.check_id == "DB-10" and .severity == "CRITICAL" and (.evidence | test("pg_write_server_files")))'
+assert "v0.4 inputs present: no DB-06 'not captured' unknowns" \
+  '[.unknowns[] | select(.reason | test("not captured"))] | length == 0'
+assert "every finding (incl. v0.4) carries citations and a fingerprint" \
+  '[.findings[] | (.citations | length > 0) and (.fingerprint | length > 0)] | all'
 
 echo "evaluating verdicts (principal NOT confirmed -> capped)..."
 python3 skills/db-access-audit/scripts/eval_grants.py \
   --grants "$OUT/grants.csv" --pii "$OUT/pii_columns.csv" \
-  --views "$OUT/masked_views.csv" --settings "$OUT/audit_logging.csv" \
+  --views "$OUT/masked_views.csv" --settings "$OUT/audit_logging.csv" "${V04_ARGS[@]}" \
   --role ai_agent --emit-json "$EVAL_OUT"
 assert "unconfirmed principal: every severity capped at MEDIUM" \
   '[.findings[] | .severity == "MEDIUM" or .severity == "LOW" or .severity == "INFO"] | all'
