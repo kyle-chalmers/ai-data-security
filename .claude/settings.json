@@ -1,6 +1,6 @@
 {
-  "$comment": "AI Data Security practices what it audits: these are the secret deny-rules ai-config-audit's AC-01 recommends. Deny rules bind Claude Code's file tools, not arbitrary subprocesses (only OS sandboxing does that) — see skills/ai-config-audit/reference.md.",
+  "$comment": "AI Data Security practices what it audits: these are the secret deny-rules ai-config-audit's AC-01 recommends, in the any-depth spelling (a bare filename matches at every depth; `./.env` would cover only the repo root). Deny rules bind Claude Code's file tools and recognized Bash file commands, not scripts — the Bash sandbox (AC-07) is a user-settings key that project settings cannot enable, so enable it in ~/.claude/settings.json. See skills/ai-config-audit/reference.md.",
   "permissions": {
-    "deny": ["Read(./.env)", "Read(./.env.*)", "Read(./secrets/**)"]
+    "deny": ["Read(.env)", "Read(.env.*)", "Read(secrets/**)"]
   }
 }

@@ -10,7 +10,7 @@ levels; the Public tier operationalizes its Section 3 discussion of PII already 
 | **Public** | Already published or cleared for publication (docs, marketing, open-source code) | N/A — already releasable | Any AI tool, any plan tier |
 | **Internal** | Non-public operational material (runbooks, architecture notes, internal metrics) | Low — limited adverse effect | Commercial-tier AI tools (no consumer training retention); no external sharing surfaces |
 | **Confidential** | Personal or business data identifying people or commercial terms (names + emails, customer lists, contracts) | Moderate — serious adverse effect | Commercial tier with verified retention; masked/aggregated forms preferred; never in prompts to consumer-tier tools |
-| **Restricted** | Data whose exposure is severe/catastrophic: government identifiers (SSN), payment card numbers, health records, credentials | High | Never enters an AI context. Access via governed views that hash/mask/omit; AI roles must be provably unable to read raw values |
+| **Restricted** | Data whose exposure is severe/catastrophic: government identifiers (SSN), payment card numbers, health records, credentials | High | Never enters an AI context. Access via governed views that hash/mask/omit; AI roles must be provably unable to read raw values. Hashed identifiers remain personal data (pseudonymized, not anonymized; NIST SP 800-188 §4.3.2) and need a key kept outside the AI role's reach |
 
 ## Operating rules
 

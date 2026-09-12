@@ -1,0 +1,4 @@
+{
+  "$comment": "FIXTURE — hardened user-scope settings: Bash sandbox enabled (AC-07 must not fire).",
+  "sandbox": { "enabled": true, "failIfUnavailable": true }
+}

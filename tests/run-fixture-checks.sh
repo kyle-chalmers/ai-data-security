@@ -36,6 +36,28 @@ else
   echo "OK: every check cites known citations and names at least one fixture"
 fi
 
+step "reference provenance: every citation has string published/accessed/status; no check cites a withdrawn entry; no unused entries"
+PROSE_ONLY='["owasp-llm01","atlas-aml-t0051-001"]'  # cited in SECURITY.md prose, per citations.yml's own rule
+if ! jq -e '[.citations | to_entries[] | select(((.value.published | type) != "string") or (.value.published == "") or ((.value.accessed | type) != "string") or (.value.accessed == "") or ((.value.status // "") | IN("current","superseded","withdrawn") | not)) | .key] == []' reference/citations.yml >/dev/null; then
+  echo "FAIL: a citation lacks a non-empty string published/accessed or has an invalid status"
+  jq -r '.citations | to_entries[] | select(((.value.published | type) != "string") or (.value.published == "") or ((.value.accessed | type) != "string") or (.value.accessed == "") or ((.value.status // "") | IN("current","superseded","withdrawn") | not)) | "  offending citation: \(.key)"' reference/citations.yml
+  fail=1
+elif ! jq -e --slurpfile cites reference/citations.yml --argjson prose "$PROSE_ONLY" '
+    ([.checks[].citations[]] + $prose | unique) as $used
+    | [$cites[0].citations | keys[] | select(. as $k | $used | index($k) | not)] == []' reference/checks.yml >/dev/null; then
+  echo "FAIL: a citation is neither referenced by a check nor in the prose-only allowlist"
+  jq -r --slurpfile cites reference/citations.yml --argjson prose "$PROSE_ONLY" '
+    ([.checks[].citations[]] + $prose | unique) as $used
+    | $cites[0].citations | keys[] | select(. as $k | $used | index($k) | not) | "  unused citation: \(.)"' reference/checks.yml
+  fail=1
+elif ! jq -e --slurpfile cites reference/citations.yml '
+    [.checks | to_entries[] | select([.value.citations[] | $cites[0].citations[.].status == "withdrawn"] | any) | .key] == []' reference/checks.yml >/dev/null; then
+  echo "FAIL: a check cites a withdrawn citation"
+  fail=1
+else
+  echo "OK: every citation carries provenance fields and no check cites a withdrawn entry"
+fi
+
 if ! command -v gitleaks >/dev/null 2>&1; then
   echo "SKIP: gitleaks not installed — secrets fixture assertions skipped (install: brew install gitleaks)"
   exit "$fail"
@@ -152,17 +174,45 @@ assert "AC-05: transcript INFO present" \
   '.findings | any(.check_id == "AC-05" and .severity == "INFO")'
 assert "AC-06: retention always reported UNKNOWN with manual-check action" \
   '.unknowns | any(.check_id == "AC-06" and (.action | test("data-privacy-controls")))'
+assert "AC-07: sandbox not enabled in fixture home -> MEDIUM finding pointing at user settings" \
+  '.findings | any(.check_id == "AC-07" and .severity == "MEDIUM" and (.remediation[0] | test("sandbox")))'
 assert "every ai-config finding carries a citation and fingerprint" \
   '[.findings[] | (.citations | length > 0) and (.fingerprint | length > 0)] | all'
 
-step "fixture ai-config-hardened: false-positive guard"
-HARDHOME="$TMP/empty-home"
-mkdir -p "$HARDHOME"
+step "fixture ai-config-hardened: false-positive guard (any-depth deny spellings + sandbox on)"
 python3 "$PERMEVAL" --target tests/fixtures/ai-config-hardened \
-  --home "$HARDHOME" --emit-json "$TMP/out.json"
-assert "hardened config: zero findings" '.findings | length == 0'
+  --home tests/fixtures/ai-config-hardened/home --emit-json "$TMP/out.json"
+assert "hardened config: zero findings (Read(.env) / **/ / //**/ spellings satisfy AC-01; sandbox on clears AC-07)" \
+  '.findings | length == 0'
 assert "hardened config: AC-06 unknown still present (never a clean bill)" \
   '.unknowns | any(.check_id == "AC-06")'
+
+step "AC-07 default posture: a home with no sandbox setting is reported, not assumed safe"
+EMPTYHOME="$TMP/empty-home"
+mkdir -p "$EMPTYHOME"
+python3 "$PERMEVAL" --target tests/fixtures/ai-config-hardened \
+  --home "$EMPTYHOME" --emit-json "$TMP/out.json"
+assert "empty home: exactly one finding and it is AC-07" \
+  '(.findings | length == 1) and (.findings[0].check_id == "AC-07")'
+
+step "AC-07 posture variants: filesystem.disabled re-fires MEDIUM; enabled without failIfUnavailable is INFO"
+FSOFF="$TMP/fs-off-home"; mkdir -p "$FSOFF/.claude"
+printf '{"sandbox": {"enabled": true, "filesystem": {"disabled": true}}}\n' > "$FSOFF/.claude/settings.json"
+python3 "$PERMEVAL" --target tests/fixtures/ai-config-hardened --home "$FSOFF" --emit-json "$TMP/out.json"
+assert "sandbox enabled but filesystem isolation disabled -> AC-07 MEDIUM" \
+  '.findings | any(.check_id == "AC-07" and .severity == "MEDIUM" and (.evidence | test("filesystem.disabled")))'
+SOFT="$TMP/soft-home"; mkdir -p "$SOFT/.claude"
+printf '{"sandbox": {"enabled": true}}\n' > "$SOFT/.claude/settings.json"
+python3 "$PERMEVAL" --target tests/fixtures/ai-config-hardened --home "$SOFT" --emit-json "$TMP/out.json"
+assert "sandbox enabled without failIfUnavailable -> AC-07 INFO only" \
+  '(.findings | map(select(.check_id == "AC-07")) | length == 1) and (.findings[] | select(.check_id == "AC-07") | .severity == "INFO")'
+
+step "AC-01 spelling regression: the legacy ./ spelling still satisfies the rule (no false positive)"
+LEGACY="$TMP/legacy-deny"
+mkdir -p "$LEGACY/.claude"
+printf '{"permissions": {"deny": ["Read(./.env)", "Read(./.env.*)", "Read(./secrets/**)"]}}\n' > "$LEGACY/.claude/settings.json"
+python3 "$PERMEVAL" --target "$LEGACY" --home tests/fixtures/ai-config-hardened/home --emit-json "$TMP/out.json"
+assert "legacy ./ spellings: no AC-01 finding" '[.findings[] | select(.check_id == "AC-01")] | length == 0'
 
 CLASSIFY="skills/data-classification/scripts/classify_hints.py"
 
@@ -348,6 +398,61 @@ if python3 "$GRANTS_S" --grants "$EHG/grants.csv" --pii "$EHG/pii.csv" \
 else
   echo "FAIL: eval_grants crashed on a malformed CSV:"; cat "$TMP/err"; fail=1
 fi
+
+step "doctor: capability matrix, registry health, always exits 0"
+python3 skills/doctor/scripts/doctor.py --home tests/fixtures/ai-config/home --format json --emit-json "$TMP/out.json" >/dev/null
+assert "doctor: registry healthy and every evaluator compiles" \
+  '.registry.ok and ([.evaluators[]] | all(. == "ok"))'
+assert "doctor: gitleaks detected and secrets-scanner marked ready (gitleaks is installed in this run)" \
+  '.tools.gitleaks.present and (.capabilities | any(.skill == "secrets-scanner" and .status == "ready"))'
+assert "doctor: fixture home without sandbox reported, AC-06 listed as always unknown" \
+  '(.sandbox.sandbox_enabled | not) and (.always_unknown | index("AC-06") != null)'
+assert "doctor: betterleaks row is information-only" '.tools.betterleaks.info_only'
+if ! python3 skills/doctor/scripts/doctor.py --home "$TMP/nonexistent-home" >/dev/null; then
+  echo "FAIL: doctor must exit 0 even with a missing home"; fail=1
+else
+  echo "OK: doctor exits 0 with a missing home"
+fi
+
+step "quick-check: three verdict lines over the combined fixture, under 120s, findings pass through"
+COMBINED="$(tests/fixtures/make-combined-repo.sh | tail -1)"
+QC_START=$(date +%s)
+python3 skills/quick-check/scripts/quick_check.py --target "$COMBINED" \
+  --home tests/fixtures/ai-config/home --emit-json "$TMP/out.json" > "$TMP/qc.txt"
+QC_ELAPSED=$(( $(date +%s) - QC_START ))
+assert "quick-check: exactly three verdict lines" '.verdicts | length == 3'
+assert "quick-check: SS-03 (agent-readable .env), AC-01, AC-07, DC-01 all pass through with citations" \
+  '[.findings[] | select(.citations | length > 0) | .check_id] | (index("SS-03") != null and index("AC-01") != null and index("AC-07") != null and index("DC-01") != null)'
+assert "quick-check: unknowns include SS-01 (history not scanned), AC-06, DB-06 (no warehouse)" \
+  '[.unknowns[].check_id] | (index("SS-01") != null and index("AC-06") != null and index("DB-06") != null)'
+assert "quick-check: every finding is labelled with its skill" '[.findings[] | .skill | length > 0] | all'
+assert "quick-check: no secret values in the merged JSON" \
+  '[tostring | test("ghp_[A-Za-z0-9]{36}|AKIA[A-Z0-9]{16}")] == [false]'
+if [ "$(grep -c '^[123]\. ' "$TMP/qc.txt")" -eq 3 ]; then
+  echo "OK: quick-check text output prints exactly three numbered verdict lines"
+else
+  echo "FAIL: quick-check text output did not print three numbered verdict lines"; fail=1
+fi
+if [ "$QC_ELAPSED" -lt 120 ]; then
+  echo "OK: quick-check finished in ${QC_ELAPSED}s (< 120s)"
+else
+  echo "FAIL: quick-check took ${QC_ELAPSED}s (>= 120s)"; fail=1
+fi
+
+step "SARIF export: valid 2.1.0 shape, one rule per check, unknowns as notifications, no values"
+python3 scripts/to_sarif.py "$TMP/out.json" -o "$TMP/out.sarif"
+cp "$TMP/out.sarif" "$TMP/out.json"
+assert "sarif: version 2.1.0 with a single run and a named driver" \
+  '.version == "2.1.0" and (.runs | length == 1) and .runs[0].tool.driver.name == "ai-data-security"'
+assert "sarif: every result references a declared rule" \
+  '([.runs[0].results[].ruleId] - [.runs[0].tool.driver.rules[].id]) == []'
+assert "sarif: CRITICAL/HIGH map to error, MEDIUM to warning, INFO to note" \
+  'all(.runs[0].results[]; ((.properties.severity | IN("CRITICAL","HIGH")) == (.level == "error")) and ((.properties.severity == "MEDIUM") == (.level == "warning")) and ((.properties.severity | IN("INFO","LOW")) == (.level == "note")))'
+assert "sarif: unknowns became tool notifications" \
+  '.runs[0].invocations[0].toolExecutionNotifications | length >= 3'
+assert "sarif: every result carries the ai-data-security fingerprint" \
+  '[.runs[0].results[] | .partialFingerprints["ai-data-security/v1"] | length > 0] | all'
+assert "sarif: no secret values" '[tostring | test("ghp_[A-Za-z0-9]{36}|AKIA[A-Z0-9]{16}")] == [false]'
 
 step "postgres pack (docker; self-skips when unavailable)"
 if ! tests/postgres-fixture-check.sh; then

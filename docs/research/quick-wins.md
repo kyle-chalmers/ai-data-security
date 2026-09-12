@@ -3,7 +3,10 @@
 Hygiene and credibility fixes surfaced while reading the repo, its GitHub metadata, and the
 knowledge base. None of these change plugin behavior. Each is small enough for one commit and is
 listed here so the implementation session can pick them up without re-deriving them. Nothing on
-this list has been applied in this pass.
+this list was applied in the research pass itself. **Status as of the v0.3 branch (2026-09-11):**
+#1, #2, #4, #5, #10 applied; #3 resolved by releasing v0.3.0 without back-tagging; #6 partially
+applied (Agentic 2026 and cheat-sheet entries added; LLM 2026 renumbering still needs the PDF); #7
+was already done by PR #3 before this pass; #8 and #9 remain open.
 
 | # | Fix | Where | Why it matters | Size |
 |---|---|---|---|---|
