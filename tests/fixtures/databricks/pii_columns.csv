@@ -1,0 +1,5 @@
+catalog,table_schema,table_name,column_name,data_type,tier_floor
+analytics,app,customers,card_number,STRING,Restricted
+analytics,app,customers,email,STRING,Confidential
+analytics,app,customers,full_name,STRING,Confidential
+analytics,app,customers,ssn,STRING,Restricted

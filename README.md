@@ -57,7 +57,7 @@ the results into one prioritized report:
 **Requirements:** [gitleaks](https://github.com/gitleaks/gitleaks) (`brew install gitleaks`) for
 the secrets scan; the skill fails closed (UNKNOWN, with instructions) rather than substituting a
 weaker scanner. `python3` (stdlib only). Optional: `psql` / [Snowflake CLI](https://docs.snowflake.com/en/developer-guide/snowflake-cli)
-for live DB audits; docker only if you run the test suite. `/doctor` checks all of these.
+/ [Databricks SQL CLI](https://docs.databricks.com/aws/en/dev-tools/databricks-sql-cli) for live DB audits; docker only if you run the test suite. `/doctor` checks all of these.
 
 ## Skills
 
@@ -69,7 +69,7 @@ for live DB audits; docker only if you run the test suite. `/doctor` checks all 
 | `/ai-data-security:ai-config-audit <path>` | Permission deny/allow rules, Bash sandbox posture, MCP configs across Claude, Cursor, Gemini, Codex, VS Code, Windsurf, Cline, Roo, Continue, Copilot CLI, OpenCode; unpinned MCP packages; **write-capable warehouse MCP servers** (Snowflake statement permissions, Postgres MCP access mode, Toolbox tool statements); local credential sinks (DuckDB secrets, warehouse CLI configs, shell history); plaintext transcripts; retention-tier guidance |
 | `/ai-data-security:data-classification <path>` | Every file against the 4-tier sensitivity framework, with validated-content evidence (Luhn, SSN format, IBAN mod-97, phone, IPv4). Counts and column names only, never values |
 | `/ai-data-security:dbt-governance-audit <dbt-project>` | Static audit of a dbt project's YAML, no warehouse connection: PII-tagged columns and models, exposures that consume them, masking packages in `packages.yml`, and likely-PII columns that carry no tag. A missing tag is never proof of no PII |
-| `/ai-data-security:db-access-audit --dialect … --connection … --role … [--user …]` | What your AI principal can actually do in Postgres/Snowflake: its **effective identity** (user type, secondary roles, inheritance, ownership), write grants, raw base-table reads and the **indirect paths** to them (inherited, PUBLIC, default privileges), unmasked PII columns and whether a masking control is **attached**, audit-trail blind spots (unreadable, unconfigured, cache-skipped), and **paths outside the database** (stages, server file roles). Human-gated; `--recorded <dir>` air-gapped mode |
+| `/ai-data-security:db-access-audit --dialect … --connection … --role … [--user …]` | What your AI principal can actually do in Postgres, Snowflake, or Databricks Unity Catalog: its **effective identity** (user type, secondary roles, inheritance, ownership), write grants, raw base-table reads and the **indirect paths** to them (inherited, PUBLIC, default privileges), unmasked PII columns and whether a masking control is **attached**, audit-trail blind spots (unreadable, unconfigured, cache-skipped), and **paths outside the database** (stages, server file roles). Human-gated; `--recorded <dir>` air-gapped mode |
 | `/ai-data-security:safe-db-access --audit <eval.json>` | **Generate the fix, as text.** From a db-access-audit result: service identity, a key vault for pseudonymization, curated masked views, revoke-raw / grant-curated, audit trail, a validation script run *as the AI role*, and rollback. Postgres and Snowflake. Never connects, never executes, never writes a file; CI applies the Postgres plan to the fixture and proves the audit comes back clean |
 | `/ai-data-security:security-audit <path>` | All of the above, merged, deduplicated, Top-5 actions first. `--sarif <file>` exports the merged findings for GitHub Code Scanning |
 
@@ -123,7 +123,8 @@ The research behind this table is in [docs/research/](docs/research/2026-09-land
 
 See [ROADMAP.md](ROADMAP.md). Shipped: trustworthy first run (v0.3), decision-quality DB audit
 (v0.4), agent-config depth and the dbt static audit (v0.5), the human-executed **safe-db-access
-planner** (v0.6, a narrow SPEC amendment). Next: more platforms where read-only evidence is viable.
+planner** (v0.6, a narrow SPEC amendment), Databricks Unity Catalog pack (v0.7). Next, in
+auditability order: Redshift, BigQuery (partial), Fabric, Lake Formation, DuckDB posture.
 Anything that applies changes or enforces at runtime stays a proposal until SPEC v2 is opened.
 
 ## Learn more
