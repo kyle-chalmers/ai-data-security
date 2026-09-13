@@ -196,6 +196,27 @@
       "description": "dbt-governance-audit skill: DBT-01..DBT-04 from YAML only",
       "check": "tests/fixtures/dbt-project step in run-fixture-checks",
       "passes": true
+    },
+    {
+      "id": "S11.1-planner-render",
+      "slice": "11",
+      "description": "safe-db-access planner renders byte-stable plans for both dialects from eval JSON plan_inputs; refuses non-identifier params; hostile object names never reach SQL",
+      "check": "run-fixture-checks 'planner (v0.6)' step (golden diff, refusals, hostile identifiers, sections sum to whole)",
+      "passes": true
+    },
+    {
+      "id": "S11.2-planner-ci-proof",
+      "slice": "11",
+      "description": "Postgres docker fixture applies the plan, validates as ai_agent, re-audits clean, rolls back to the goldens",
+      "check": "tests/postgres-fixture-check.sh planner phase",
+      "passes": true
+    },
+    {
+      "id": "S11.3-plan-inputs",
+      "slice": "11",
+      "description": "eval_grants emits value-free plan_inputs; columns.sql added to the pg pack",
+      "check": "expected/columns.csv golden; plan_inputs present in both fixture evals",
+      "passes": true
     }
   ]
 }

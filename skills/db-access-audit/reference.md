@@ -97,6 +97,11 @@ Snowflake notes that matter:
    regulated data from agent sessions.
 3. Where joins need a stable identifier, use a **keyed** hash (HMAC) or tokenization with the key
    held outside the AI role's reach, not a salt table in a schema the same account can read.
+   Columns whose name carries a pseudonymization suffix (`*_pseudo`, `*_hash`, `*_hmac`, `*_token`)
+   AND whose object is a view with a hashing/masking signal in its definition are tiered
+   `Pseudonymized` by the evaluator (v0.6): DB-03 lists them as INFO and DB-08 does not count them
+   as unattached PII. A base-table column named `ssn_hash` stays Restricted; without a views input
+   nothing is pseudonymized. The safe-db-access planner produces exactly this shape.
    **Hashed identifiers are pseudonymized, not anonymized**: NIST SP 800-188 §4.3.2 says unkeyed
    hashing "generally does not confer security because an attacker can brute force" low-entropy
    values, and the EDPB's Guidelines 01/2025 treat pseudonymised data as personal data whose key

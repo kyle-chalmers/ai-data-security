@@ -1,0 +1,1 @@
+-- SELECT COUNT(*) FROM {{db}}.{{schema}}.{{table}};   -- optional manual probe: EXPECT ERROR (raw table not authorized)

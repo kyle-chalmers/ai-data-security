@@ -1,0 +1,13 @@
+table_schema,table_name,column_name,data_type,ordinal_position
+app,customers,customer_id,integer,1
+app,customers,full_name,text,2
+app,customers,email,text,3
+app,customers,ssn,text,4
+app,customers,card_number,text,5
+app,customers,member_ssn,text,6
+app,customers,customer_email,text,7
+app,customers,emailed_at,timestamp with time zone,8
+app,customers,balance,numeric,9
+app,orders,order_id,integer,1
+app,orders,customer_id,integer,2
+app,orders,total,numeric,3

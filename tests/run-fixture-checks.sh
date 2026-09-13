@@ -316,6 +316,77 @@ python3 "$DBT" --target "$DBTMISS" --emit-json "$TMP/out.json"
 assert "no dbt_project.yml -> DBT-03 UNKNOWN, zero findings (fail closed, not a clean report)" \
   '(.findings | length == 0) and ([.unknowns[] | select(.check_id == "DBT-03")] | length == 1)'
 
+PLAN="skills/safe-db-access/scripts/plan.py"
+step "planner (v0.6): byte-stable renders for both dialects, refusal paths, sections sum to the whole"
+E=tests/fixtures/postgres/expected; S=tests/fixtures/snowflake
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect postgres --grants $E/grants.csv --pii $E/pii_columns.csv \
+  --views $E/masked_views.csv --settings $E/audit_logging.csv --identity $E/identity.csv --policies $E/policy_attachment.csv \
+  --external $E/external_paths.csv --audit-quality $E/audit_quality.csv --columns $E/columns.csv \
+  --role ai_agent --principal-confirmed --ignore-dir tests/fixtures/postgres --emit-json "$TMP/pg.json"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect snowflake --grants $S/grants.txt --pii $S/pii_columns.txt \
+  --views $S/masked_views.txt --settings $S/audit_logging.txt --identity $S/identity.txt --policies $S/policy_references.txt \
+  --audit-quality $S/audit_quality.txt --role AI_AGENT --principal-confirmed --ignore-dir $S --emit-json "$TMP/sf.json"
+python3 "$PLAN" --audit "$TMP/pg.json" > "$TMP/pg.plan.sql"
+python3 "$PLAN" --audit "$TMP/sf.json" --edition enterprise > "$TMP/sf.plan.sql"
+if diff -u tests/fixtures/planner/postgres.plan.sql "$TMP/pg.plan.sql"; then echo "OK: postgres plan matches golden"; else echo "FAIL: postgres plan diverges from golden"; fail=1; fi
+if diff -u tests/fixtures/planner/snowflake.plan.sql "$TMP/sf.plan.sql"; then echo "OK: snowflake plan matches golden"; else echo "FAIL: snowflake plan diverges from golden"; fail=1; fi
+for d in pg sf; do
+  : > "$TMP/$d.sections.sql"
+  for sec in header identity vault curated grants audit validate rollback; do
+    args=(); [ "$d" = sf ] && args=(--edition enterprise)
+    python3 "$PLAN" --audit "$TMP/$d.json" --section "$sec" "${args[@]}" >> "$TMP/$d.sections.sql"
+  done
+  if cmp -s "$TMP/$d.plan.sql" "$TMP/$d.sections.sql"; then echo "OK: $d sections concatenate to the whole plan"; else echo "FAIL: $d --section output differs from the whole"; fail=1; fi
+done
+if grep -q '{{' "$TMP/pg.plan.sql" "$TMP/sf.plan.sql"; then echo "FAIL: unfilled slot in a plan"; fail=1; else echo "OK: no unfilled template slots"; fi
+if grep -qiE "fixture-placeholder|password *=|PASSWORD '" "$TMP/pg.plan.sql" "$TMP/sf.plan.sql"; then echo "FAIL: credential-like text in a plan"; fail=1; else echo "OK: plans carry no credential text"; fi
+if grep -q 'PSEUDONYMIZED personal' "$TMP/pg.plan.sql" && grep -q 'PSEUDONYMIZED personal' "$TMP/sf.plan.sql"; then echo "OK: both plans state pseudonymized-not-anonymized"; else echo "FAIL: pseudonymization statement missing"; fail=1; fi
+# refusals: nothing rendered, non-zero exit
+if out="$(python3 "$PLAN" --audit "$TMP/pg.json" --curated-schema 'cur;DROP' 2>/dev/null)"; then echo "FAIL: hostile --curated-schema accepted"; fail=1; elif [ -n "$out" ]; then echo "FAIL: refusal still printed a plan"; fail=1; else echo "OK: hostile --curated-schema refused with empty stdout"; fi
+if out="$(python3 "$PLAN" --audit "$TMP/pg.json" --ai-role '"ai_agent"' 2>/dev/null)"; then echo "FAIL: quoted --ai-role accepted"; fail=1; elif [ -n "$out" ]; then echo "FAIL: refusal printed a plan"; fail=1; else echo "OK: quoted --ai-role refused"; fi
+if out="$(python3 "$PLAN" --audit "$TMP/pg.json" --curated-schema same --vault-schema same 2>/dev/null)"; then echo "FAIL: curated == vault accepted"; fail=1; else echo "OK: curated == vault refused"; fi
+jq 'del(.plan_inputs)' "$TMP/pg.json" > "$TMP/pg-noplan.json"
+if out="$(python3 "$PLAN" --audit "$TMP/pg-noplan.json" 2>/dev/null)"; then echo "FAIL: audit without plan_inputs accepted"; fail=1; else echo "OK: audit JSON without plan_inputs refused"; fi
+# hostile object name from the warehouse: excluded and listed, never rendered
+jq '.plan_inputs.raw_tables += [{"schema":"app","table":"evil; DROP TABLE x--"}] | .plan_inputs.pii_columns += [{"schema":"app","table":"customers","column":"x\") OR 1=1--","tier":"Restricted"}]' "$TMP/pg.json" > "$TMP/pg-hostile.json"
+python3 "$PLAN" --audit "$TMP/pg-hostile.json" > "$TMP/pg-hostile.plan.sql"
+if grep -q 'DROP TABLE x' "$TMP/pg-hostile.plan.sql" || grep -q 'OR 1=1' "$TMP/pg-hostile.plan.sql"; then echo "FAIL: hostile identifier reached the plan"; fail=1; else echo "OK: hostile identifiers never reach the plan text"; fi
+if grep -q "NOT RENDERED" "$TMP/pg-hostile.plan.sql" && [ "$(grep -c '<refused:' "$TMP/pg-hostile.plan.sql")" -eq 2 ] && ! grep -q 'evil' "$TMP/pg-hostile.plan.sql"; then echo "OK: hostile identifiers listed under NOT RENDERED by hash handle only"; else echo "FAIL: hostile identifiers not reported (or echoed)"; fail=1; fi
+# Codex gate v0.6: namespace/role collisions refused; hostile check_id never echoed; basename collisions; PUBLIC gated; provenance-based pseudonymization
+if out="$(python3 "$PLAN" --audit "$TMP/pg.json" --vault-schema app 2>/dev/null)"; then echo "FAIL: --vault-schema equal to a raw schema accepted (rollback would DROP it)"; fail=1; else echo "OK: vault schema colliding with a raw schema refused"; fi
+if out="$(python3 "$PLAN" --audit "$TMP/pg.json" --curated-schema public 2>/dev/null)"; then echo "FAIL: reserved schema accepted"; fail=1; else echo "OK: reserved schema refused"; fi
+if out="$(python3 "$PLAN" --audit "$TMP/pg.json" --owner-role ai_agent 2>/dev/null)"; then echo "FAIL: owner role == AI role accepted"; fail=1; else echo "OK: owner role == AI role refused"; fi
+if out="$(python3 "$PLAN" --audit "$TMP/sf.json" --auditor-role AI_AGENT 2>/dev/null)"; then echo "FAIL: auditor role == AI role accepted"; fail=1; else echo "OK: auditor role == AI role refused"; fi
+jq '.findings += [{"check_id": "DB-99\nDROP TABLE app.customers; --", "severity": "INFO"}]' "$TMP/pg.json" > "$TMP/pg-checkid.json"
+python3 "$PLAN" --audit "$TMP/pg-checkid.json" > "$TMP/pg-checkid.plan.sql"
+if grep -q 'DROP TABLE app.customers' "$TMP/pg-checkid.plan.sql"; then echo "FAIL: hostile check_id reached the plan header"; fail=1; else echo "OK: hostile check_id dropped from the header"; fi
+jq '.plan_inputs.raw_tables += [{"schema":"support","table":"customers"}]' "$TMP/pg.json" > "$TMP/pg-dup.json"
+python3 "$PLAN" --audit "$TMP/pg-dup.json" > "$TMP/pg-dup.plan.sql"
+if grep -q 'VIEW curated.app_customers AS' "$TMP/pg-dup.plan.sql" && grep -q 'VIEW curated.support_customers AS' "$TMP/pg-dup.plan.sql" && ! grep -q 'VIEW curated.customers AS' "$TMP/pg-dup.plan.sql"; then echo "OK: duplicate basenames get schema-qualified view names"; else echo "FAIL: duplicate basenames collide"; fail=1; fi
+if grep -q '^-- REVIEW, then remove this comment marker to run: REVOKE SELECT ON app.orders FROM PUBLIC;' "$TMP/pg.plan.sql" && ! grep -q '^REVOKE SELECT ON app.orders FROM PUBLIC;' "$TMP/pg.plan.sql"; then echo "OK: PUBLIC revocation rendered commented out by default, exact privilege"; else echo "FAIL: PUBLIC revocation not gated"; fail=1; fi
+python3 "$PLAN" --audit "$TMP/pg.json" --include-public-revokes > "$TMP/pg-public.plan.sql"
+if grep -q '^REVOKE SELECT ON app.orders FROM PUBLIC;' "$TMP/pg-public.plan.sql" && grep -q '^GRANT SELECT ON app.orders TO PUBLIC;' "$TMP/pg-public.plan.sql"; then echo "OK: --include-public-revokes renders exact revoke and exact rollback"; else echo "FAIL: --include-public-revokes"; fail=1; fi
+if grep -q 'ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA app REVOKE ALL ON TABLES FROM ai_agent;' "$TMP/pg.plan.sql"; then echo "OK: default privileges revoked FOR ROLE the captured grantor"; else echo "FAIL: default privileges missing FOR ROLE"; fail=1; fi
+jq '.plan_inputs.pii_columns += [{"schema":"APP","table":"CUSTOMERS","column":"DOB","tier":"Restricted","type":"DATE"}]' "$TMP/sf.json" > "$TMP/sf-date.json"
+python3 "$PLAN" --audit "$TMP/sf-date.json" --edition enterprise > "$TMP/sf-date.plan.sql"
+if grep -q 'Status: INCOMPLETE' "$TMP/sf-date.plan.sql" && grep -q 'DOB is DATE' "$TMP/sf-date.plan.sql" && ! grep -q 'MODIFY COLUMN DOB SET MASKING POLICY' "$TMP/sf-date.plan.sql"; then echo "OK: non-STRING Restricted column gets no STRING policy; plan INCOMPLETE"; else echo "FAIL: type-mismatched policy attach"; fail=1; fi
+# provenance: a BASE-TABLE column named ssn_hash stays Restricted (names are not evidence)
+python3 - "$E" "$TMP" <<'PY'
+import csv, sys, shutil, os
+e, tmp = sys.argv[1], sys.argv[2]
+d = os.path.join(tmp, "pg-hashname"); os.makedirs(d, exist_ok=True)
+for f in os.listdir(e): shutil.copy(os.path.join(e, f), d)
+with open(os.path.join(d, "pii_columns.csv"), "a", newline="") as fh:
+    csv.writer(fh).writerow(["app", "customers", "ssn_hash", "text", "Restricted"])
+PY
+H="$TMP/pg-hashname"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect postgres --grants "$H/grants.csv" --pii "$H/pii_columns.csv" --views "$H/masked_views.csv" --settings "$H/audit_logging.csv" --identity "$H/identity.csv" --policies "$H/policy_attachment.csv" --external "$H/external_paths.csv" --audit-quality "$H/audit_quality.csv" --columns "$H/columns.csv" --role ai_agent --principal-confirmed --emit-json "$TMP/pg-hashname.json"
+if jq -e '.findings | any(.check_id == "DB-03" and .severity == "HIGH" and (.evidence | test("ssn_hash")))' "$TMP/pg-hashname.json" >/dev/null && jq -e '[.findings[] | select(.check_id == "DB-03" and .severity == "INFO")] | length == 0' "$TMP/pg-hashname.json" >/dev/null && jq -e '.plan_inputs.pii_columns | any(.column == "ssn_hash" and .tier == "Restricted")' "$TMP/pg-hashname.json" >/dev/null; then echo "OK: base-table ssn_hash stays Restricted (no pseudonymized downgrade by name)"; else echo "FAIL: name-only pseudonymization downgrade"; fail=1; fi
+# missing columns input -> INCOMPLETE, view body not rendered
+jq '.plan_inputs.columns = null' "$TMP/pg.json" > "$TMP/pg-nocols.json"
+python3 "$PLAN" --audit "$TMP/pg-nocols.json" > "$TMP/pg-nocols.plan.sql"
+if grep -q 'Status: INCOMPLETE' "$TMP/pg-nocols.plan.sql" && grep -q 'INCOMPLETE: app.customers' "$TMP/pg-nocols.plan.sql" && ! grep -q 'hash_pii(email' "$TMP/pg-nocols.plan.sql"; then echo "OK: missing columns -> INCOMPLETE, PII view not rendered"; else echo "FAIL: missing columns did not fail closed"; fail=1; fi
+
 step "fixture classify-repo: deterministic floors, validators, no values in output"
 python3 "$CLASSIFY" --target tests/fixtures/classify-repo --emit-json "$TMP/out.json"
 assert "accounts.csv floors to Restricted, confirmed, via SSN + Luhn validators" \

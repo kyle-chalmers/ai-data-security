@@ -1,0 +1,2 @@
+REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA {{schema}} FROM {{owner_role}};
+REVOKE ALL PRIVILEGES ON SCHEMA {{schema}} FROM {{owner_role}};

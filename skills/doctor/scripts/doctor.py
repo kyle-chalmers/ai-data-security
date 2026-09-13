@@ -103,6 +103,7 @@ def evaluators_compile():
         "skills/data-classification/scripts/classify_hints.py",
         "skills/db-access-audit/scripts/eval_grants.py",
         "skills/dbt-governance-audit/scripts/dbt_audit.py",
+        "skills/safe-db-access/scripts/plan.py",
         "skills/quick-check/scripts/quick_check.py",
         "scripts/to_sarif.py",
         "scripts/yaml_subset.py",
@@ -140,6 +141,7 @@ def capability_matrix(tools):
     rows.append(("ai-config-audit", "ready", "stdlib only"))
     rows.append(("data-classification", "ready", "stdlib only"))
     rows.append(("dbt-governance-audit", "ready", "stdlib only; YAML declarations, no connection"))
+    rows.append(("safe-db-access (planner)", "ready", "stdlib only; renders SQL text from a db-access-audit JSON, never connects"))
     rows.append(("db-access-audit (postgres)", "ready" if tools["psql"]["present"] else "UNKNOWN",
                  "psql present" if tools["psql"]["present"] else "psql missing → live Postgres audit unavailable; --recorded <dir> still works"))
     rows.append(("db-access-audit (snowflake)", "ready" if tools["snow"]["present"] else "UNKNOWN",
