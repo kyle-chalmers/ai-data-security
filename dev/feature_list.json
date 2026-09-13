@@ -238,6 +238,13 @@
       "description": "identity.sql statement 3; session role vs --role compared when the session is the AI user",
       "check": "snowflake DB-ID-01 evidence mentions CURRENT_ROLE()",
       "passes": true
+    },
+    {
+      "id": "S13.1-redshift-pack",
+      "slice": "13",
+      "description": "Redshift pack + dialect module: transitive roles, groups, PUBLIC, schema-USAGE effective access, secadmin-aware DB-08, IAM-auth identity",
+      "check": "run-fixture-checks 'redshift pack' step",
+      "passes": true
     }
   ]
 }

@@ -1,0 +1,5 @@
+namespace_name,privilege_type,privilege_scope,identity_name,identity_type,admin_option
+app,USAGE,SCHEMA,ai_agent,user,f
+app,SELECT,TABLES,analyst,role,f
+lake,USAGE,SCHEMA,analyst,role,f
+hr,USAGE,SCHEMA,ai_agent,user,f

@@ -1,0 +1,7 @@
+table_schema,table_name,column_name,data_type,tier_floor
+app,customers,card_number,character varying,Restricted
+app,customers,email,character varying,Confidential
+app,customers,full_name,character varying,Confidential
+app,customers,ssn,character varying,Restricted
+hr,employees,salary,integer,Confidential
+hr,employees,ssn,character varying,Restricted

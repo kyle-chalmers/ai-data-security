@@ -1,0 +1,3 @@
+database_name,privilege_type,privilege_scope,identity_name,identity_type,admin_option
+dev,TEMP,DATABASE,public,public,f
+dev,USAGE,DATABASE,ai_agent,user,f

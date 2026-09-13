@@ -1,0 +1,3 @@
+iam_arn,command_type,identity_name,identity_type
+default-aws-iam-role,COPY,public,public
+default-aws-iam-role,UNLOAD,analyst,role

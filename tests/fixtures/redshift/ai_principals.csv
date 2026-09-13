@@ -1,0 +1,4 @@
+user_name,is_superuser,auth_hint
+IAM:etl_pipeline,f,iam_temporary_credentials
+admin,t,database_password_or_iam_identity
+ai_agent,f,database_password_or_iam_identity

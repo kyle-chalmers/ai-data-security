@@ -1,0 +1,5 @@
+schema_name,relation_name,relation_type,owner
+app,customer_masked_v,VIEW,data_eng
+app,customers,TABLE,data_eng
+app,orders,TABLE,data_eng
+app,scratch_exports,TABLE,ai_agent

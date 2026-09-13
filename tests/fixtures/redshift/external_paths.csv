@@ -1,0 +1,2 @@
+schema_name,kind,external_database,identity_name,identity_type,privilege_type
+lake,data_catalog,lakedb,analyst,role,USAGE
