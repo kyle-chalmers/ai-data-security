@@ -228,7 +228,8 @@
         "bigquery-iam-roles",
         "sql-sys-database-permissions",
         "fabric-workspace-roles",
-        "lakeformation-permissions-reference"
+        "lakeformation-permissions-reference",
+        "duckdb-securing"
       ],
       "fixtures": [
         "postgres-fixture",
@@ -237,7 +238,8 @@
         "redshift-recorded",
         "bigquery-recorded",
         "fabric-recorded",
-        "lakeformation-recorded"
+        "lakeformation-recorded",
+        "duckdb-recorded"
       ]
     },
     "DB-02": {
@@ -259,7 +261,8 @@
         "fabric-connectivity",
         "lakeformation-list-permissions",
         "lakeformation-permissions-reference",
-        "lakeformation-tbac"
+        "lakeformation-tbac",
+        "duckdb-metadata-functions"
       ],
       "fixtures": [
         "postgres-fixture",
@@ -268,7 +271,8 @@
         "redshift-recorded",
         "bigquery-recorded",
         "fabric-recorded",
-        "lakeformation-recorded"
+        "lakeformation-recorded",
+        "duckdb-recorded"
       ]
     },
     "DB-03": {
@@ -277,7 +281,8 @@
       "citations": [
         "nist-sp800-122",
         "owasp-llm02",
-        "atlas-aml-t0057"
+        "atlas-aml-t0057",
+        "duckdb-metadata-functions"
       ],
       "fixtures": [
         "postgres-fixture",
@@ -286,7 +291,8 @@
         "redshift-recorded",
         "bigquery-recorded",
         "fabric-recorded",
-        "lakeformation-recorded"
+        "lakeformation-recorded",
+        "duckdb-recorded"
       ]
     },
     "DB-04": {
@@ -306,7 +312,8 @@
         "redshift-recorded",
         "bigquery-recorded",
         "fabric-recorded",
-        "lakeformation-recorded"
+        "lakeformation-recorded",
+        "duckdb-recorded"
       ]
     },
     "DB-05": {
@@ -321,7 +328,8 @@
         "fabric-sql-audit-logs",
         "fabric-query-insights",
         "lakeformation-cloudtrail-getdataaccess",
-        "lakeformation-cloudtrail-logging"
+        "lakeformation-cloudtrail-logging",
+        "duckdb-securing"
       ],
       "fixtures": [
         "postgres-fixture",
@@ -330,7 +338,8 @@
         "redshift-recorded",
         "bigquery-recorded",
         "fabric-recorded",
-        "lakeformation-recorded"
+        "lakeformation-recorded",
+        "duckdb-recorded"
       ]
     },
     "DB-06": {
@@ -339,7 +348,8 @@
       "citations": [
         "nist-sp800-122",
         "lakeformation-cli-list-permissions",
-        "lakeformation-tbac"
+        "lakeformation-tbac",
+        "duckdb-cli-arguments"
       ],
       "fixtures": [
         "postgres-fixture",
@@ -347,7 +357,8 @@
         "redshift-recorded",
         "bigquery-recorded",
         "fabric-recorded",
-        "lakeformation-recorded"
+        "lakeformation-recorded",
+        "duckdb-recorded"
       ]
     },
     "DB-ID-01": {
@@ -365,7 +376,8 @@
         "bigquery-iam-roles",
         "sql-sys-database-principals",
         "fabric-workspace-roles",
-        "lakeformation-permissions-reference"
+        "lakeformation-permissions-reference",
+        "duckdb-securing"
       ],
       "fixtures": [
         "postgres-fixture",
@@ -374,7 +386,8 @@
         "redshift-recorded",
         "bigquery-recorded",
         "fabric-recorded",
-        "lakeformation-recorded"
+        "lakeformation-recorded",
+        "duckdb-recorded"
       ]
     },
     "DB-07": {
@@ -395,7 +408,8 @@
         "fabric-sql-granular-permissions",
         "lakeformation-permissions-reference",
         "lakeformation-hybrid-access-mode",
-        "lakeformation-hybrid-prerequisites"
+        "lakeformation-hybrid-prerequisites",
+        "duckdb-metadata-functions"
       ],
       "fixtures": [
         "postgres-fixture",
@@ -404,7 +418,8 @@
         "redshift-recorded",
         "bigquery-recorded",
         "fabric-recorded",
-        "lakeformation-recorded"
+        "lakeformation-recorded",
+        "duckdb-recorded"
       ]
     },
     "DB-08": {
@@ -435,7 +450,8 @@
         "redshift-recorded",
         "bigquery-recorded",
         "fabric-recorded",
-        "lakeformation-recorded"
+        "lakeformation-recorded",
+        "duckdb-recorded"
       ]
     },
     "DB-09": {
@@ -452,7 +468,10 @@
         "fabric-query-insights",
         "fabric-sql-audit-logs",
         "lakeformation-cloudtrail-getdataaccess",
-        "lakeformation-cloudtrail-logging"
+        "lakeformation-cloudtrail-logging",
+        "duckdb-securing",
+        "duckdb-configuration",
+        "duckdb-cli-safe-mode"
       ],
       "fixtures": [
         "postgres-fixture",
@@ -461,7 +480,8 @@
         "redshift-recorded",
         "bigquery-recorded",
         "fabric-recorded",
-        "lakeformation-recorded"
+        "lakeformation-recorded",
+        "duckdb-recorded"
       ]
     },
     "DB-10": {
@@ -476,7 +496,9 @@
         "redshift-svv-iam-privileges",
         "bigquery-iam-roles",
         "fabric-security-overview",
-        "lakeformation-permissions-reference"
+        "lakeformation-permissions-reference",
+        "duckdb-secrets-manager",
+        "duckdb-securing"
       ],
       "fixtures": [
         "postgres-fixture",
@@ -485,7 +507,8 @@
         "redshift-recorded",
         "bigquery-recorded",
         "fabric-recorded",
-        "lakeformation-recorded"
+        "lakeformation-recorded",
+        "duckdb-recorded"
       ]
     },
     "DBT-01": {

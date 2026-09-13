@@ -233,6 +233,19 @@ if lfm._s3_prefix("arn:aws:s3:::acme-lake/legacy/") != "s3://acme-lake/legacy":
 if not lfm._under("s3://acme-lake/legacy/profiles/", "s3://acme-lake/legacy") or lfm._under("s3://acme-lake/legacy_v2/x", "s3://acme-lake/legacy"):
     failures.append("lakeformation _under prefix boundary")
 
+# v0.12: DuckDB posture helpers.
+dk = load("dialect_duckdb", "skills/db-access-audit/scripts/dialects/duckdb.py")
+for v, want in [("true", True), ("t", True), ("1", True), ("false", False), ("", False), ("NULL", False)]:
+    if dk._truthy(v) != want:
+        failures.append(f"duckdb _truthy({v!r}) != {want}")
+for path in ("s3://b/x.duckdb", "md:share", "https://h/x.duckdb", "gs://b/x", "az://c/x"):
+    if not path.lower().startswith(dk.REMOTE_SCHEMES):
+        failures.append(f"duckdb REMOTE_SCHEMES misses {path}")
+if "/Users/x/local.duckdb".lower().startswith(dk.REMOTE_SCHEMES):
+    failures.append("duckdb REMOTE_SCHEMES matches a local path")
+if not {"httpfs", "aws", "azure", "motherduck"} <= dk.CLOUD_EXT or "json" in dk.CLOUD_EXT:
+    failures.append("duckdb CLOUD_EXT membership")
+
 # Fail-closed expiry: unparseable AND blank expires= must both count as expired.
 # Blank expires= (fail-open) was an edge-hardening finding — locked here across all evaluators.
 permeval = load("permeval", "skills/ai-config-audit/scripts/permeval.py")

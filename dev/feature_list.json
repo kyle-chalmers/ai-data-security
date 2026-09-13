@@ -266,6 +266,13 @@
       "description": "Lake Formation module (JSON-only): column inclusion/exclusion maths, IAMAllowedPrincipals/ALLIAMPrincipals, cells filters, settings defaults, IAM policy names, hybrid mode, DATA_LOCATION_ACCESS",
       "check": "run-fixture-checks 'lakeformation pack' step",
       "passes": true
+    },
+    {
+      "id": "S17.1-duckdb-posture-pack",
+      "slice": "17",
+      "description": "DuckDB posture module: file mode/git exposure, read-write opening, process guards (capture-session view), cloud extensions + persistent secrets, remote/MotherDuck attachments, PII columns, no audit log",
+      "check": "run-fixture-checks 'duckdb posture pack' step",
+      "passes": true
     }
   ]
 }
