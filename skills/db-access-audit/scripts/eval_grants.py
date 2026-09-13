@@ -827,7 +827,7 @@ def _split_sf_name(name):
     return parts if len(parts) == 3 else [None, None, name]
 
 
-MODULE_DIALECTS = ["databricks", "redshift"]
+MODULE_DIALECTS = ["databricks", "redshift", "bigquery"]
 
 
 def run_module_dialect(args, confidence, unknowns):
@@ -856,6 +856,26 @@ def run_module_dialect(args, confidence, unknowns):
             tables[name] = None
         else:
             tables[name] = rows
+    optional_json = set(getattr(module, "OPTIONAL_JSON_INPUTS", set()))
+    for name, capture in getattr(module, "JSON_INPUTS", {}).items():
+        path = os.path.join(args.recorded, f"{name}.json")
+        if not os.path.exists(path):
+            tables[name] = None
+            if name in optional_json:
+                continue  # the module decides whether its absence matters
+            unknowns.append({"check_id": "DB-06",
+                             "reason": f"recorded output '{name}.json' missing — that part of the audit did not run.",
+                             "action": f"Capture it: {capture}; do not treat this as a pass."})
+            tables[name] = None
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                tables[name] = json.load(f)
+        except (OSError, ValueError) as exc:
+            unknowns.append({"check_id": "DB-06",
+                             "reason": f"recorded output '{name}.json' is not valid JSON ({exc.__class__.__name__}) — that check did not run.",
+                             "action": "Re-capture the exact command; do not treat this as a pass."})
+            tables[name] = None
     if getattr(module, "PRECONDITION", None):
         unknowns.append({"check_id": "DB-06",
                          "reason": f"precondition for a complete {args.dialect} capture: {module.PRECONDITION}",

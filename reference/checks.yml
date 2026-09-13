@@ -224,13 +224,15 @@
         "owasp-asi03",
         "databricks-uc-privileges",
         "redshift-svv-relation-privileges",
-        "redshift-svv-column-privileges"
+        "redshift-svv-column-privileges",
+        "bigquery-iam-roles"
       ],
       "fixtures": [
         "postgres-fixture",
         "snowflake-recorded",
         "databricks-recorded",
-        "redshift-recorded"
+        "redshift-recorded",
+        "bigquery-recorded"
       ]
     },
     "DB-02": {
@@ -243,13 +245,17 @@
         "databricks-uc-privileges",
         "redshift-svv-relation-privileges",
         "redshift-svv-column-privileges",
-        "redshift-svv-database-privileges"
+        "redshift-svv-database-privileges",
+        "bigquery-iam-roles",
+        "bigquery-object-privileges",
+        "bigquery-bq-cli"
       ],
       "fixtures": [
         "postgres-fixture",
         "snowflake-recorded",
         "databricks-recorded",
-        "redshift-recorded"
+        "redshift-recorded",
+        "bigquery-recorded"
       ]
     },
     "DB-03": {
@@ -264,7 +270,8 @@
         "postgres-fixture",
         "snowflake-recorded",
         "databricks-recorded",
-        "redshift-recorded"
+        "redshift-recorded",
+        "bigquery-recorded"
       ]
     },
     "DB-04": {
@@ -273,13 +280,15 @@
       "citations": [
         "nist-sp800-122",
         "databricks-info-schema-column-masks",
-        "redshift-svv-attached-masking-policy"
+        "redshift-svv-attached-masking-policy",
+        "bigquery-column-level-security"
       ],
       "fixtures": [
         "postgres-fixture",
         "snowflake-recorded",
         "databricks-recorded",
-        "redshift-recorded"
+        "redshift-recorded",
+        "bigquery-recorded"
       ]
     },
     "DB-05": {
@@ -289,13 +298,15 @@
         "nist-ai-600-1",
         "owasp-agent-cheat-sheet",
         "databricks-system-tables",
-        "redshift-db-auditing"
+        "redshift-db-auditing",
+        "bigquery-audit-logs"
       ],
       "fixtures": [
         "postgres-fixture",
         "snowflake-recorded",
         "databricks-recorded",
-        "redshift-recorded"
+        "redshift-recorded",
+        "bigquery-recorded"
       ]
     },
     "DB-06": {
@@ -307,7 +318,8 @@
       "fixtures": [
         "postgres-fixture",
         "databricks-recorded",
-        "redshift-recorded"
+        "redshift-recorded",
+        "bigquery-recorded"
       ]
     },
     "DB-ID-01": {
@@ -321,13 +333,15 @@
         "databricks-show-groups",
         "redshift-svv-role-grants",
         "redshift-get-cluster-credentials",
-        "redshift-system-roles"
+        "redshift-system-roles",
+        "bigquery-iam-roles"
       ],
       "fixtures": [
         "postgres-fixture",
         "snowflake-recorded",
         "databricks-recorded",
-        "redshift-recorded"
+        "redshift-recorded",
+        "bigquery-recorded"
       ]
     },
     "DB-07": {
@@ -341,13 +355,16 @@
         "databricks-uc-privileges",
         "databricks-show-groups",
         "redshift-svv-role-grants",
-        "redshift-svv-database-privileges"
+        "redshift-svv-database-privileges",
+        "bigquery-object-privileges",
+        "bigquery-iam-roles"
       ],
       "fixtures": [
         "postgres-fixture",
         "snowflake-recorded",
         "databricks-recorded",
-        "redshift-recorded"
+        "redshift-recorded",
+        "bigquery-recorded"
       ]
     },
     "DB-08": {
@@ -361,13 +378,17 @@
         "redshift-svv-attached-masking-policy",
         "redshift-system-roles",
         "redshift-attach-masking-policy",
-        "redshift-case-sensitive-identifier"
+        "redshift-case-sensitive-identifier",
+        "bigquery-column-level-security",
+        "bigquery-data-masking",
+        "bigquery-row-level-security"
       ],
       "fixtures": [
         "postgres-fixture",
         "snowflake-recorded",
         "databricks-recorded",
-        "redshift-recorded"
+        "redshift-recorded",
+        "bigquery-recorded"
       ]
     },
     "DB-09": {
@@ -378,13 +399,16 @@
         "nist-ai-600-1",
         "databricks-system-tables",
         "redshift-sys-query-history",
-        "redshift-db-auditing"
+        "redshift-db-auditing",
+        "bigquery-information-schema-jobs",
+        "bigquery-audit-logs"
       ],
       "fixtures": [
         "postgres-fixture",
         "snowflake-recorded",
         "databricks-recorded",
-        "redshift-recorded"
+        "redshift-recorded",
+        "bigquery-recorded"
       ]
     },
     "DB-10": {
@@ -396,13 +420,15 @@
         "postgres-predefined-roles",
         "databricks-uc-privileges",
         "redshift-svv-external-schemas",
-        "redshift-svv-iam-privileges"
+        "redshift-svv-iam-privileges",
+        "bigquery-iam-roles"
       ],
       "fixtures": [
         "postgres-fixture",
         "snowflake-recorded",
         "databricks-recorded",
-        "redshift-recorded"
+        "redshift-recorded",
+        "bigquery-recorded"
       ]
     },
     "DBT-01": {

@@ -154,6 +154,48 @@ makes DB-08 and DB-04 UNKNOWN, never "no policies".
 | `audit_logging.csv` | S3/CloudWatch export invisible from SQL; SYS_QUERY_HISTORY own-rows visibility; 4000-char truncation; result-cache reads | DB-09 (probable) |
 | `external_paths.csv` + `iam_privileges.csv` | USAGE on external schemas (Spectrum / Glue, Hive, federated, remote Redshift, Kinesis, MSK); UNLOAD / EXTERNAL FUNCTION / CREATE MODEL grants on IAM roles → CRITICAL, COPY → HIGH | DB-10 (bucket-level IAM/S3 authorization stays a DB-06) |
 
+## Google BigQuery pack — invocation and interpretation (v0.9, PARTIAL by design, fixture-validated)
+
+Recorded mode: `eval_grants.py --dialect bigquery --recorded <dir>` reads `grants.csv` (assembled
+from `grants_dataset.sql` + `grants_table.sql`, because OBJECT_PRIVILEGES must be filtered to one
+dataset or one table), `pii_columns.csv`, `masked_views.csv`, `policy_tags.csv`,
+`audit_logging.csv`, `tables_manifest.csv`, and the JSON captures `iam_policy.json`,
+`deny_policies.json`, `log_bucket.json`, `row_access_policies.json`, and (service accounts only)
+`sa_keys.json` (see `sql/bigquery/README.md`). Live capture goes through the user's own `bq` and
+`gcloud`, under `set -euo pipefail`, one file per object.
+
+Identity model the module applies (`scripts/dialects/bigquery.py`): the principal is an IAM member
+string; its kind is the prefix (`serviceAccount:` / `user:` / `group:`); `allUsers` and
+`allAuthenticatedUsers` are everyone. A project-level role (from `iam_policy.json`) applies to
+every dataset and table — the inherited access OBJECT_PRIVILEGES never lists; a dataset-level
+(`SCHEMA`) binding to every table. Read roles: dataViewer / dataEditor / dataOwner / admin; write
+roles: dataEditor / dataOwner / admin. The basic roles Owner / Editor / Viewer are NOT counted as
+table access (they act through dataset default ACLs the pack cannot see) and appear as DB-ID-01
+breadth plus a DB-06. Conditional bindings are excluded and reported as DB-06. Without a
+project-level jobUser/user/admin role the access is noted as latent (no `bigquery.jobs.create` in
+this project). Grants on VIEWS are excluded from PII exposure (authorized-view relationships are
+not captured → DB-06). PII names come from `COLUMN_FIELD_PATHS`, so nested STRUCT fields count.
+
+| Input | Look for | Check |
+|---|---|---|
+| `iam_policy.json` + `grants.csv` | write roles at project, dataset, or table level | DB-01 |
+| | read roles on BASE/EXTERNAL/CLONE/SNAPSHOT tables; read roles at dataset or project level | DB-02 |
+| `pii_columns.csv` × readable objects | PII-named columns on readable tables | DB-03 |
+| `masked_views.csv` + `policy_tags.csv` | no view with a masking signal and no policy-tagged column (invisible definitions → UNKNOWN) | DB-04 |
+| `audit_logging.csv` + `log_bucket.json` | Data Access logs are on by default (INFO); `_Default` retention stated | DB-05 |
+| `iam_policy.json` + `sa_keys.json` | user / group principal; project-level admin or basic roles (CRITICAL); user-managed service-account keys | DB-ID-01 |
+| `iam_policy.json` + `grants.csv` | project-level read/write roles, dataset-level bindings, everyone bindings reaching PII tables | DB-07 |
+| `policy_tags.csv` | readable PII field with neither a policy tag nor a data policy; tagged fields are governed only if the principal lacks Fine-Grained Reader at the tag level (taxonomy IAM not captured → DB-06); data-policy fields → DB-06 on the effective rule | DB-08 |
+| `audit_logging.csv` + `log_bucket.json` | the PRINCIPAL's cache hits in 30 days (jobs billed to this project); `_Default` retention < 90 days; reviewer Logs Viewer | DB-09 (probable) |
+| `iam_policy.json` + `masked_views.csv` | project-level Cloud Storage write roles (EXPORT DATA / extract → CRITICAL); readable EXTERNAL tables | DB-10 |
+| `row_access_policies.json` | row access policies present (INFO; rows, not columns) | DB-08 INFO |
+
+Permanent DB-06s: the explicit-bindings-only precondition; group / domain / principal-set bindings
+whose membership is not visible (project and object level); custom roles not expanded; conditional
+bindings excluded; deny policies (captured as a list; any present → not evaluated) and principal
+access boundaries; basic roles; authorized views; taxonomy and data-policy IAM; an incomplete
+per-table capture (manifest vs rows). `plan_inputs.partial_by_design` is `true`.
+
 ## Remediation target state (the safe-db-access recipe; planner approved as a SPEC amendment 2026-09-11)
 
 1. Dedicated AI service principal, no interactive human sharing it. On Snowflake create it with

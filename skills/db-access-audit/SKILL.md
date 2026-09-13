@@ -1,6 +1,6 @@
 ---
-description: Read-only warehouse audit for AI access risk — the AI principal's effective identity (user type, secondary roles, group membership, inheritance, ownership), over-broad and indirect grants, unmasked PII columns and whether any masking control is attached, audit-trail blind spots, and paths outside the database (stages, external locations, server file roles). Postgres (live), Snowflake (recorded/live), Databricks Unity Catalog (recorded/live via dbsqlcli), Amazon Redshift (recorded/live via psql) packs. Human-gated; connects via your own pre-authenticated psql/snow/dbsqlcli; never stores credentials.
-argument-hint: "--dialect postgres|snowflake|databricks|redshift --connection <conninfo-or-name> --role <ai-role> [--user <ai-user>] [--catalog <catalog>] [--confirm] [--recorded <dir>]"
+description: Read-only warehouse audit for AI access risk — the AI principal's effective identity (user type, secondary roles, group membership, inheritance, ownership), over-broad and indirect grants, unmasked PII columns and whether any masking control is attached, audit-trail blind spots, and paths outside the database (stages, external locations, server file roles). Postgres (live), Snowflake (recorded/live), Databricks Unity Catalog (recorded/live via dbsqlcli), Amazon Redshift (recorded/live via psql), Google BigQuery (recorded/live via bq + gcloud; partial by design) packs. Human-gated; connects via your own pre-authenticated psql/snow/dbsqlcli; never stores credentials.
+argument-hint: "--dialect postgres|snowflake|databricks|redshift|bigquery --connection <conninfo-or-name> --role <ai-role> [--user <ai-user>] [--catalog <catalog>] [--confirm] [--recorded <dir>]"
 allowed-tools: "Bash(psql *), Bash(snow *), Bash(python3 *), Bash(mktemp *), Read, Glob"
 ---
 
@@ -26,7 +26,7 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
 
 ## Steps
 
-1. **Parse arguments** from `$ARGUMENTS`: `--dialect` (postgres|snowflake|databricks|redshift), `--connection`
+1. **Parse arguments** from `$ARGUMENTS`: `--dialect` (postgres|snowflake|databricks|redshift|bigquery), `--connection`
    (psql conninfo/URL or snow connection name), `--role` (the AI principal to analyze),
    optional `--user` (Snowflake: the USER the agent authenticates as, needed for DB-ID-01 and
    DB-09; if omitted those checks are UNKNOWN), optional `--confirm`, optional `--recorded <dir>`. If a `.ai-data-security.yml` org profile
@@ -111,7 +111,25 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
      and RLS attachment views return ZERO rows to anyone but superusers and `sys:secadmin` — so the
      capture should run as a superuser or a `sys:secadmin` + `sys:monitor` holder, and the report
      says when it did not (identity.sql records the auditor's standing).
-   **databricks / redshift**: `python3 .../eval_grants.py --dialect <databricks|redshift> --recorded <tmp> --role <principal> [--principal-confirmed] --ignore-dir <dir> --emit-json <tmp>/eval.json`
+   - **bigquery** (v0.9, PARTIAL by design) — `--role` is the IAM member string exactly as
+     bindings spell it (`serviceAccount:<email>`, `user:<email>`, `group:<email>`); `--project`,
+     `--region` (e.g. `us`), `--dataset` are validated (`^[a-z][a-z0-9-]{4,28}[a-z0-9]$`,
+     `^[a-z0-9-]+$`, `^[A-Za-z0-9_]+$`) and substituted. `sql/bigquery/README.md` gives the exact
+     `bq` / `gcloud` capture loop: OBJECT_PRIVILEGES must be queried per dataset and per table
+     (`grants_dataset.sql`, `grants_table.sql` → one `grants.csv`), plus JSON captures
+     `iam_policy.json` (project IAM: the inherited access OBJECT_PRIVILEGES never shows),
+     `deny_policies.json`, `log_bucket.json`, `row_access_policies.json`, `sa_keys.json` (service
+     accounts only), a `tables_manifest.csv` from `bq ls` (so the evaluator can prove the per-table
+     loop completed), and a `policy_tags.csv` (policy tags AND data policies, nested fields
+     included) built from `bq show --schema`. Run the loop under `set -euo pipefail`. Gate
+     preconditions to state: OBJECT_PRIVILEGES needs `bigquery.datasets.get` /
+     `bigquery.tables.getIamPolicy`; `get-iam-policy` needs `resourcemanager.projects.getIamPolicy`;
+     JOBS needs `bigquery.jobs.listAll` AND `bigquery.jobs.create`. Say plainly that
+     folder/organization bindings, principal access boundaries, Google Group / domain / principal-set
+     membership, custom-role permissions, conditional bindings, authorized views, and Fine-Grained
+     Reader / data-policy IAM are NOT captured and appear as UNKNOWNs; basic roles (Owner / Editor /
+     Viewer) are identity breadth, not table access.
+   **databricks / redshift / bigquery**: `python3 .../eval_grants.py --dialect <databricks|redshift|bigquery> --recorded <tmp> --role <principal> [--principal-confirmed] --ignore-dir <dir> --emit-json <tmp>/eval.json`
    (one `<file>.csv` per pack file; a missing or malformed file is a DB-06 UNKNOWN naming the
    capture command). The planner has no Databricks templates yet and says so.
 

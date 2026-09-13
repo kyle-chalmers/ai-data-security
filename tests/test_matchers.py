@@ -206,6 +206,13 @@ for raw, expect in [('["email"]', ["email"]), ('["a", "b"]', ["a", "b"]), ('{ema
     if got != expect:
         failures.append(f"redshift _columns({raw!r}) = {got!r}, expected {expect!r}")
 
+# v0.9: BigQuery principal kinds by member prefix.
+bq = load("dialect_bigquery", "skills/db-access-audit/scripts/dialects/bigquery.py")
+for member, kind in [("serviceAccount:a@p.iam.gserviceaccount.com", "serviceaccount"), ("user:a@b.c", "user"), ("group:g@b.c", "group"),
+                     ("allUsers", "everyone"), ("allAuthenticatedUsers", "everyone"), ("domain:example.com", "domain"), ("bogus", "unknown")]:
+    if bq._kind(member) != kind:
+        failures.append(f"bigquery _kind({member!r}) != {kind}")
+
 # Fail-closed expiry: unparseable AND blank expires= must both count as expired.
 # Blank expires= (fail-open) was an edge-hardening finding — locked here across all evaluators.
 permeval = load("permeval", "skills/ai-config-audit/scripts/permeval.py")
