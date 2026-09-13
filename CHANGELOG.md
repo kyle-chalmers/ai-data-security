@@ -3,6 +3,36 @@
 All notable changes to AI Data Security are documented here. This project follows
 [Semantic Versioning](https://semver.org). Dates are ISO-8601.
 
+## [0.10.0] — 2026-09-13
+
+Microsoft Fabric Warehouse / SQL analytics endpoint pack (coverage, fourth platform), **partial by
+design**: T-SQL sees GRANT/DENY, roles, masks, and policies; it cannot see workspace roles or item
+permissions, which the report repeats on every finding.
+
+### Added
+- **`db-access-audit --dialect fabric`** (recorded via `--recorded <dir>`; live capture through the
+  user's own `sqlcmd -G` over TDS 1433, Entra authentication only). Six T-SQL pack files over
+  `sys.database_principals`, `sys.database_role_members`, `sys.database_permissions` (database /
+  schema / object / column, GRANT / DENY / grant-with-grant-option), `sys.columns` +
+  `sys.masked_columns`, `sys.views` + `sys.security_policies`, and `queryinsights`; each file emits
+  its own header so `sqlcmd -h -1` CSV is self-describing. Optional `audit_status.json` from the
+  Fabric REST `settings/sqlAudit` endpoint and `endpoint_mode.json` (a lakehouse SQL analytics
+  endpoint in OneLake user-identity mode makes every table-access verdict UNKNOWN). The module walks
+  role membership transitively, treats the fixed roles `db_owner` / `db_datareader` /
+  `db_datawriter` / `db_ddladmin` and schema/object **ownership** as authority with no permission
+  rows, applies the Database Engine precedence rules (DENY beats GRANT at a covering scope; a
+  column-level GRANT overrides an object-level DENY; CONTROL implies SELECT, ALTER does not), shows
+  each PII column's dynamic data mask and whether UNMASK / CONTROL / ownership makes it non-binding,
+  treats EXECUTE on procedures and functions as an opaque read path (DB-06), and reports SQL audit
+  logs as DISABLED (MEDIUM) / enabled without predicate (INFO with groups and retention) / with a
+  predicate or malformed or not captured (DB-06), noting when no selected action covers SELECT.
+  Free-text CSV fields are `QUOTENAME`-quoted (mask functions contain commas). DB-10 is an INFO that
+  OneLake, shortcuts, and Direct Lake read the same Delta files outside the SQL endpoint. A permanent
+  DB-06 states that workspace roles (Admin/Member/Contributor = CONTROL, Viewer = ReadData on every
+  table) and item permissions are not visible from T-SQL. Ten Microsoft Learn pages fetched live for
+  the citation registry.
+- `doctor` lists the Fabric pack (`sqlcmd`).
+
 ## [0.9.0] — 2026-09-13
 
 Google BigQuery pack (coverage, third platform), **partial by design** as the roadmap promised:
@@ -409,6 +439,7 @@ First public release. Feature-complete v1: audit-only, read-only, every finding 
   hunt): permission-glob precision, uniform fail-closed suppression, a value-leak in classification
   evidence, crash-resistance on hostile inputs, and a regex ReDoS were all fixed and regression-locked.
 
+[0.10.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.10.0
 [0.9.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.9.0
 [0.8.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.8.0
 [0.7.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.7.0

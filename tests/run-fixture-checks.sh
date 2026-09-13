@@ -640,6 +640,66 @@ python3 skills/db-access-audit/scripts/eval_grants.py --dialect bigquery --recor
 if jq -e '(.unknowns | any(.check_id == "DB-06" and (.reason | test("iam_policy.json. is not valid JSON")))) and ([.unknowns[] | select(.reason | test("json. missing"))] | length == 3) and (.unknowns | any(.reason | test("sa_keys.json was not captured"))) and ([.findings[] | select(.check_id == "DB-07" and (.evidence | test("project:")))] | length == 0)' "$TMP/out-miss.json" >/dev/null; then echo "OK: malformed iam_policy.json and missing required JSON -> DB-06s (sa_keys optional but flagged for a service account); no project-level claims invented"; else echo "FAIL: JSON input fail-closed handling"; fail=1; fi
 if out="$(python3 skills/safe-db-access/scripts/plan.py --audit "$TMP/out.json" 2>&1 >/dev/null)"; then echo "FAIL: planner rendered for bigquery"; fail=1; else echo "OK: planner refuses bigquery (no templates)"; fi
 
+step "db-access-audit fabric pack (v0.10, partial by design): recorded sqlcmd CSVs -> module verdicts"
+FB="tests/fixtures/fabric"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect fabric --recorded "$FB" \
+  --role ai-agent-sp --principal-confirmed --ignore-dir "$FB" --emit-json "$TMP/out.json"
+assert "DB-01 CRITICAL: direct INSERT on app.orders, schema ALTER via role, and ownership of schema scratch + scratch.exports; no fixed write role" \
+  '.findings | any(.check_id == "DB-01" and .severity == "CRITICAL" and (.evidence | test("object_or_column app.orders:INSERT \\(direct\\)")) and (.evidence | test("schema app:ALTER \\(via role analysts\\)")) and (.evidence | test("owns schema scratch, scratch.exports")) and (.evidence | test("fixed role") | not))'
+assert "DB-02 HIGH: db_datareader, schema app SELECT via analysts, owned schema, owned table, column-level SELECT on hr.employees(salary); ALTER is not a read path" \
+  '.findings | any(.check_id == "DB-02" and .severity == "HIGH" and (.evidence | test("fixed role\\(s\\) db_datareader")) and (.evidence | test("schema app \\(via role analysts\\)")) and (.evidence | test("scratch.exports \\(owner\\)")) and (.evidence | test("hr.employees\\(salary\\) \\(direct\\)")) and (.evidence | test("ALTER") | not))'
+assert "DB-03: ssn and hr.employees.ssn DENIED; hr.employees.salary readable via column GRANT over object DENY; phone mask marked NOT binding (UNMASK via role)" \
+  '(.findings | any(.check_id == "DB-03" and .severity == "HIGH" and (.evidence | test("readable: app.customers.card_number \\(column names only")) and (.evidence | test("DENYs exclude: app.customers.ssn, hr.employees.ssn")) and (.evidence | test("Column GRANTs override object DENYs on: hr.employees.salary")))) and (.findings | any(.check_id == "DB-03" and .severity == "MEDIUM" and (.evidence | test("app.customers.email \\[DDM: email\\(\\)\\]")) and (.evidence | test("app.customers.phone \\[DDM: partial\\(1,\"XXXXXXX\",0\\), NOT binding: UNMASK/CONTROL held\\]")) and (.evidence | test("hr.employees.salary"))))'
+assert "DB-08 HIGH: email mask binds; phone mask bypassed by role UNMASK; card_number/full_name/salary have no mask; ssn excluded" \
+  '.findings | any(.check_id == "DB-08" and .severity == "HIGH" and (.evidence | test("1 readable PII column\\(s\\) carry a dynamic data mask that binds this principal \\(app.customers.email\\)")) and (.evidence | test("NOT binding because the principal holds UNMASK or CONTROL \\(or ownership\\): app.customers.phone")) and (.evidence | test("No mask at all: app.customers.card_number, app.customers.full_name, hr.employees.salary")) and (.evidence | test("ssn") | not))'
+assert "DB-04 absent: masked columns exist" '[.findings[] | select(.check_id == "DB-04")] | length == 0'
+assert "DB-05 INFO: SQL audit ENABLED, groups listed, retention 90, no predicate" \
+  '.findings | any(.check_id == "DB-05" and .severity == "INFO" and (.evidence | test("412 statement")) and (.evidence | test("ENABLED with DATABASE_OBJECT_PERMISSION_CHANGE_GROUP, SCHEMA_OBJECT_ACCESS_GROUP")) and (.evidence | test("retention 90")))'
+assert "DB-09 MEDIUM/probable: OneLake bypass named; SCHEMA_OBJECT_ACCESS_GROUP covers SELECT so no coverage complaint" \
+  '.findings | any(.check_id == "DB-09" and .confidence == "probable" and (.evidence | test("OneLake")) and (.evidence | test("no selected action or group covers SELECT") | not))'
+assert "DB-ID-01 HIGH: 2 roles, ownership; service principal (no USER complaint)" \
+  '.findings | any(.check_id == "DB-ID-01" and .severity == "HIGH" and (.evidence | test("member of 2 database role\\(s\\): analysts, db_datareader")) and (.evidence | test("owns schema scratch")) and (.evidence | test("Entra USER") | not))'
+assert "DB-07 HIGH: fixed role, schema SELECT via analysts, role-held UNMASK on customers, EXECUTE on the procedure via analysts" \
+  '.findings | any(.check_id == "DB-07" and .severity == "HIGH" and (.evidence | test("fixed role\\(s\\) db_datareader")) and (.evidence | test("schema app:SELECT via role analysts")) and (.evidence | test("app.customers:UNMASK via role analysts")) and (.evidence | test("app.usp_customer_lookup:EXECUTE via role analysts")))'
+assert "EXECUTE on a module is an opaque read path -> DB-06 naming it" '.unknowns | any(.check_id == "DB-06" and (.reason | test("EXECUTE on module\\(s\\) app.usp_customer_lookup")))'
+assert "DB-10 INFO/probable: OneLake paths outside T-SQL" '.findings | any(.check_id == "DB-10" and .severity == "INFO" and .confidence == "probable" and (.evidence | test("OneLake")))'
+assert "permanent DB-06: workspace roles incl. Viewer ReadData and item permissions invisible from T-SQL; warehouse item -> no endpoint-mode DB-06" \
+  '(.unknowns | any(.check_id == "DB-06" and (.reason | test("Viewer = ReadData")) and (.reason | test("item permissions")))) and ([.unknowns[] | select(.reason | test("access mode was not captured"))] | length == 0)'
+assert "plan_inputs: principal_type E, fixed_roles db_datareader, owned schema, denies, endpoint_mode warehouse, execute_modules, partial_by_design" \
+  '(.plan_inputs.principal_type == "E") and (.plan_inputs.fixed_roles == ["db_datareader"]) and (.plan_inputs.owned_schemas == ["scratch"]) and ([.plan_inputs.denies[].column] | index("ssn") != null) and (.plan_inputs.endpoint_mode == "warehouse") and (.plan_inputs.execute_modules | length == 1) and (.plan_inputs.partial_by_design == true)'
+assert "every fabric finding carries citations and a fingerprint; the quoted mask function round-tripped through CSV" \
+  '([.findings[] | (.citations | length > 0) and (.fingerprint | length > 0)] | all) and ([tostring | test("XXXXXXX")] == [true])'
+# the human db_owner as agent -> CRITICAL, USER complaint, DB-01 via fixed role
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect fabric --recorded "$FB" --role data-eng@example.invalid --principal-confirmed --emit-json "$TMP/out-owner.json"
+if jq -e '(.findings | any(.check_id == "DB-ID-01" and .severity == "CRITICAL" and (.evidence | test("Entra USER")) and (.evidence | test("db_owner")))) and (.findings | any(.check_id == "DB-01" and (.evidence | test("fixed role\\(s\\) db_owner"))))' "$TMP/out-owner.json" >/dev/null; then echo "OK: human db_owner as agent -> DB-ID-01 CRITICAL and DB-01 via fixed role"; else echo "FAIL: db_owner principal handling"; fail=1; fi
+# audit status: disabled -> MEDIUM; predicate -> DB-06 and no INFO; malformed state -> DB-06; missing -> DB-06
+FBD="$TMP/fb-disabled"; mkdir -p "$FBD"; cp "$FB"/*.csv "$FB"/endpoint_mode.json "$FBD"/; echo '{"state":"Disabled","retentionDays":0,"auditActionsAndGroups":[]}' > "$FBD/audit_status.json"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect fabric --recorded "$FBD" --role ai-agent-sp --principal-confirmed --emit-json "$TMP/out-dis.json"
+if jq -e '.findings | any(.check_id == "DB-05" and .severity == "MEDIUM" and (.evidence | test("DISABLED")))' "$TMP/out-dis.json" >/dev/null; then echo "OK: SQL audit logs disabled -> DB-05 MEDIUM"; else echo "FAIL: audit disabled handling"; fail=1; fi
+echo '{"state":"Enabled","retentionDays":30,"auditActionsAndGroups":["BATCH_COMPLETED_GROUP"],"predicateExpression":"NOT server_principal_name = '"'"'ai-agent-sp'"'"'"}' > "$FBD/audit_status.json"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect fabric --recorded "$FBD" --role ai-agent-sp --principal-confirmed --emit-json "$TMP/out-pred.json"
+if jq -e '([.findings[] | select(.check_id == "DB-05")] | length == 0) and (.unknowns | any(.reason | test("predicate expression filters events")))' "$TMP/out-pred.json" >/dev/null; then echo "OK: audit predicate -> DB-06, no INFO coverage claim"; else echo "FAIL: audit predicate handling"; fail=1; fi
+echo '{"state":"Other"}' > "$FBD/audit_status.json"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect fabric --recorded "$FBD" --role ai-agent-sp --principal-confirmed --emit-json "$TMP/out-bad.json"
+if jq -e '([.findings[] | select(.check_id == "DB-05")] | length == 0) and (.unknowns | any(.reason | test("not Enabled/Disabled")))' "$TMP/out-bad.json" >/dev/null; then echo "OK: malformed audit state -> DB-06, no DB-05 claim"; else echo "FAIL: malformed audit state handling"; fail=1; fi
+echo '{"state":"Enabled","retentionDays":30,"auditActionsAndGroups":["DATABASE_OBJECT_PERMISSION_CHANGE_GROUP"],"predicateExpression":""}' > "$FBD/audit_status.json"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect fabric --recorded "$FBD" --role ai-agent-sp --principal-confirmed --emit-json "$TMP/out-nosel.json"
+if jq -e '.findings | any(.check_id == "DB-09" and (.evidence | test("no selected action or group covers SELECT")))' "$TMP/out-nosel.json" >/dev/null; then echo "OK: enabled without SELECT coverage -> DB-09 says so"; else echo "FAIL: SELECT coverage handling"; fail=1; fi
+FBM="$TMP/fb-noaudit"; mkdir -p "$FBM"; cp "$FB"/*.csv "$FB"/endpoint_mode.json "$FBM"/
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect fabric --recorded "$FBM" --role ai-agent-sp --principal-confirmed --emit-json "$TMP/out-noaud.json"
+if jq -e '(.unknowns | any(.reason | test("SQL audit log state was not captured"))) and ([.findings[] | select(.check_id == "DB-05")] | length == 0)' "$TMP/out-noaud.json" >/dev/null; then echo "OK: audit status not captured -> DB-06, no DB-05 claim"; else echo "FAIL: missing audit status handling"; fail=1; fi
+# user-identity mode SQL analytics endpoint -> table-access verdicts UNKNOWN
+FBU="$TMP/fb-useridentity"; mkdir -p "$FBU"; cp "$FB"/*.csv "$FB"/audit_status.json "$FBU"/; echo '{"itemType":"SQLEndpoint","accessMode":"userIdentity"}' > "$FBU/endpoint_mode.json"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect fabric --recorded "$FBU" --role ai-agent-sp --principal-confirmed --emit-json "$TMP/out-ui.json"
+if jq -e '([.findings[] | select(.check_id == "DB-01" or .check_id == "DB-02" or .check_id == "DB-03" or .check_id == "DB-04" or .check_id == "DB-07" or .check_id == "DB-08")] | length == 0) and (.unknowns | any(.reason | test("user-identity mode")))' "$TMP/out-ui.json" >/dev/null; then echo "OK: user-identity mode -> DB-01..08 UNKNOWN, no SQL-grant verdicts"; else echo "FAIL: user-identity mode handling"; fail=1; fi
+FBN="$TMP/fb-nomode"; mkdir -p "$FBN"; cp "$FB"/*.csv "$FB"/audit_status.json "$FBN"/
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect fabric --recorded "$FBN" --role ai-agent-sp --principal-confirmed --emit-json "$TMP/out-nm.json"
+if jq -e '.unknowns | any(.reason | test("access mode was not captured"))' "$TMP/out-nm.json" >/dev/null; then echo "OK: endpoint mode not captured -> DB-06"; else echo "FAIL: missing endpoint mode handling"; fail=1; fi
+# unknown principal name -> DB-06 (may still read everything via a workspace role)
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect fabric --recorded "$FB" --role nobody-here --principal-confirmed --emit-json "$TMP/out-nobody.json"
+if jq -e '(.unknowns | any(.reason | test("no database principal named .nobody-here."))) and ([.findings[] | select(.check_id == "DB-ID-01")] | length == 0)' "$TMP/out-nobody.json" >/dev/null; then echo "OK: unknown principal -> DB-06, no identity finding fabricated"; else echo "FAIL: unknown principal handling"; fail=1; fi
+if out="$(python3 skills/safe-db-access/scripts/plan.py --audit "$TMP/out.json" 2>&1 >/dev/null)"; then echo "FAIL: planner rendered for fabric"; fail=1; else echo "OK: planner refuses fabric (no templates)"; fi
+
 step "db-access-audit snowflake pack: script-computed verdicts match expected_findings.md"
 # v0.7 carry-over from the v0.4 gate: the audit session's own CURRENT_ROLE() is compared to --role
 SFF="tests/fixtures/snowflake"

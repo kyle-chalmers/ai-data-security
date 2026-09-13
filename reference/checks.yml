@@ -225,14 +225,17 @@
         "databricks-uc-privileges",
         "redshift-svv-relation-privileges",
         "redshift-svv-column-privileges",
-        "bigquery-iam-roles"
+        "bigquery-iam-roles",
+        "sql-sys-database-permissions",
+        "fabric-workspace-roles"
       ],
       "fixtures": [
         "postgres-fixture",
         "snowflake-recorded",
         "databricks-recorded",
         "redshift-recorded",
-        "bigquery-recorded"
+        "bigquery-recorded",
+        "fabric-recorded"
       ]
     },
     "DB-02": {
@@ -248,14 +251,18 @@
         "redshift-svv-database-privileges",
         "bigquery-iam-roles",
         "bigquery-object-privileges",
-        "bigquery-bq-cli"
+        "bigquery-bq-cli",
+        "sql-sys-database-permissions",
+        "fabric-workspace-roles",
+        "fabric-connectivity"
       ],
       "fixtures": [
         "postgres-fixture",
         "snowflake-recorded",
         "databricks-recorded",
         "redshift-recorded",
-        "bigquery-recorded"
+        "bigquery-recorded",
+        "fabric-recorded"
       ]
     },
     "DB-03": {
@@ -271,7 +278,8 @@
         "snowflake-recorded",
         "databricks-recorded",
         "redshift-recorded",
-        "bigquery-recorded"
+        "bigquery-recorded",
+        "fabric-recorded"
       ]
     },
     "DB-04": {
@@ -281,14 +289,16 @@
         "nist-sp800-122",
         "databricks-info-schema-column-masks",
         "redshift-svv-attached-masking-policy",
-        "bigquery-column-level-security"
+        "bigquery-column-level-security",
+        "fabric-dynamic-data-masking"
       ],
       "fixtures": [
         "postgres-fixture",
         "snowflake-recorded",
         "databricks-recorded",
         "redshift-recorded",
-        "bigquery-recorded"
+        "bigquery-recorded",
+        "fabric-recorded"
       ]
     },
     "DB-05": {
@@ -299,14 +309,17 @@
         "owasp-agent-cheat-sheet",
         "databricks-system-tables",
         "redshift-db-auditing",
-        "bigquery-audit-logs"
+        "bigquery-audit-logs",
+        "fabric-sql-audit-logs",
+        "fabric-query-insights"
       ],
       "fixtures": [
         "postgres-fixture",
         "snowflake-recorded",
         "databricks-recorded",
         "redshift-recorded",
-        "bigquery-recorded"
+        "bigquery-recorded",
+        "fabric-recorded"
       ]
     },
     "DB-06": {
@@ -319,7 +332,8 @@
         "postgres-fixture",
         "databricks-recorded",
         "redshift-recorded",
-        "bigquery-recorded"
+        "bigquery-recorded",
+        "fabric-recorded"
       ]
     },
     "DB-ID-01": {
@@ -334,14 +348,17 @@
         "redshift-svv-role-grants",
         "redshift-get-cluster-credentials",
         "redshift-system-roles",
-        "bigquery-iam-roles"
+        "bigquery-iam-roles",
+        "sql-sys-database-principals",
+        "fabric-workspace-roles"
       ],
       "fixtures": [
         "postgres-fixture",
         "snowflake-recorded",
         "databricks-recorded",
         "redshift-recorded",
-        "bigquery-recorded"
+        "bigquery-recorded",
+        "fabric-recorded"
       ]
     },
     "DB-07": {
@@ -357,14 +374,17 @@
         "redshift-svv-role-grants",
         "redshift-svv-database-privileges",
         "bigquery-object-privileges",
-        "bigquery-iam-roles"
+        "bigquery-iam-roles",
+        "sql-sys-database-permissions",
+        "fabric-sql-granular-permissions"
       ],
       "fixtures": [
         "postgres-fixture",
         "snowflake-recorded",
         "databricks-recorded",
         "redshift-recorded",
-        "bigquery-recorded"
+        "bigquery-recorded",
+        "fabric-recorded"
       ]
     },
     "DB-08": {
@@ -381,14 +401,17 @@
         "redshift-case-sensitive-identifier",
         "bigquery-column-level-security",
         "bigquery-data-masking",
-        "bigquery-row-level-security"
+        "bigquery-row-level-security",
+        "fabric-dynamic-data-masking",
+        "fabric-row-level-security"
       ],
       "fixtures": [
         "postgres-fixture",
         "snowflake-recorded",
         "databricks-recorded",
         "redshift-recorded",
-        "bigquery-recorded"
+        "bigquery-recorded",
+        "fabric-recorded"
       ]
     },
     "DB-09": {
@@ -401,14 +424,17 @@
         "redshift-sys-query-history",
         "redshift-db-auditing",
         "bigquery-information-schema-jobs",
-        "bigquery-audit-logs"
+        "bigquery-audit-logs",
+        "fabric-query-insights",
+        "fabric-sql-audit-logs"
       ],
       "fixtures": [
         "postgres-fixture",
         "snowflake-recorded",
         "databricks-recorded",
         "redshift-recorded",
-        "bigquery-recorded"
+        "bigquery-recorded",
+        "fabric-recorded"
       ]
     },
     "DB-10": {
@@ -421,14 +447,16 @@
         "databricks-uc-privileges",
         "redshift-svv-external-schemas",
         "redshift-svv-iam-privileges",
-        "bigquery-iam-roles"
+        "bigquery-iam-roles",
+        "fabric-security-overview"
       ],
       "fixtures": [
         "postgres-fixture",
         "snowflake-recorded",
         "databricks-recorded",
         "redshift-recorded",
-        "bigquery-recorded"
+        "bigquery-recorded",
+        "fabric-recorded"
       ]
     },
     "DBT-01": {

@@ -1,0 +1,8 @@
+schema_name,table_name,column_name,data_type,tier_floor,is_masked,masking_function
+"app","customers","card_number",varchar,Restricted,0,""
+"app","customers","email",varchar,Confidential,1,"email()"
+"app","customers","full_name",varchar,Confidential,0,""
+"app","customers","phone",varchar,Confidential,1,"partial(1,""XXXXXXX"",0)"
+"app","customers","ssn",varchar,Restricted,0,""
+"hr","employees","salary",int,Confidential,0,""
+"hr","employees","ssn",varchar,Restricted,0,""
