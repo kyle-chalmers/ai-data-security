@@ -300,6 +300,62 @@
       "published": "live doc",
       "accessed": "2026-09-13",
       "status": "current"
+    },
+    "bigquery-object-privileges": {
+      "display": "Google Cloud BigQuery docs: INFORMATION_SCHEMA.OBJECT_PRIVILEGES (explicit bindings only, no inherited bindings; must filter to one dataset or one table; needs bigquery.datasets.get / bigquery.tables.getIamPolicy)",
+      "url": "https://docs.cloud.google.com/bigquery/docs/information-schema-object-privileges",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "bigquery-iam-roles": {
+      "display": "Google Cloud BigQuery docs: BigQuery IAM roles and permissions (dataViewer / dataEditor / dataOwner / admin grant bigquery.tables.getData; project-level roles apply to every dataset)",
+      "url": "https://docs.cloud.google.com/bigquery/docs/access-control",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "bigquery-column-level-security": {
+      "display": "Google Cloud BigQuery docs: Introduction to column-level access control (policy tags; Fine-Grained Reader; dataset permission AND tag permission both required)",
+      "url": "https://docs.cloud.google.com/bigquery/docs/column-level-security-intro",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "bigquery-data-masking": {
+      "display": "Google Cloud BigQuery docs: Introduction to data masking (data policies on policy tags; Masked Reader sees hashed/nullified values, Fine-Grained Reader sees raw)",
+      "url": "https://docs.cloud.google.com/bigquery/docs/column-data-masking-intro",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "bigquery-information-schema-jobs": {
+      "display": "Google Cloud BigQuery docs: INFORMATION_SCHEMA.JOBS (180 days of job history; bigquery.jobs.listAll; cache_hit)",
+      "url": "https://docs.cloud.google.com/bigquery/docs/information-schema-jobs",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "bigquery-audit-logs": {
+      "display": "Google Cloud BigQuery docs: BigQuery audit logs overview (Data Access logs on by default for BigQuery; Admin Activity logs always on)",
+      "url": "https://docs.cloud.google.com/bigquery/docs/reference/auditlogs",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "bigquery-row-level-security": {
+      "display": "Google Cloud BigQuery docs: Use row-level security (bq ls --row_access_policies; grantees must also hold table access)",
+      "url": "https://docs.cloud.google.com/bigquery/docs/managing-row-level-security",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "bigquery-bq-cli": {
+      "display": "Google Cloud BigQuery docs: bq command-line tool reference (--format=csv, --nouse_legacy_sql, bq show --schema --format=prettyjson with policyTags)",
+      "url": "https://docs.cloud.google.com/bigquery/docs/reference/bq-cli-reference",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
     }
   }
 }

@@ -1,0 +1,6 @@
+table_schema,table_name,column_name,field_path,data_type,tier_floor
+app,customers,card_number,card_number,STRING,Restricted
+app,customers,contact,contact.email,STRING,Confidential
+app,customers,contact,contact.phone,STRING,Confidential
+app,customers,full_name,full_name,STRING,Confidential
+app,customers,ssn,ssn,STRING,Restricted

@@ -1,0 +1,7 @@
+object_catalog,object_schema,object_name,object_type,privilege_type,grantee
+acme-analytics,,app,SCHEMA,roles/bigquery.dataViewer,group:analysts@example.invalid
+acme-analytics,,app,SCHEMA,roles/bigquery.dataOwner,user:data-eng@example.invalid
+acme-analytics,app,customers,TABLE,roles/bigquery.dataEditor,serviceAccount:ai-agent@acme-analytics.iam.gserviceaccount.com
+acme-analytics,app,orders,TABLE,roles/bigquery.dataViewer,allAuthenticatedUsers
+acme-analytics,app,events_ext,EXTERNAL,roles/bigquery.dataViewer,serviceAccount:ai-agent@acme-analytics.iam.gserviceaccount.com
+acme-analytics,app,customers,TABLE,roles/bigquery.dataViewer,group:analysts@example.invalid

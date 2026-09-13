@@ -3,6 +3,34 @@
 All notable changes to AI Data Security are documented here. This project follows
 [Semantic Versioning](https://semver.org). Dates are ISO-8601.
 
+## [0.9.0] — 2026-09-13
+
+Google BigQuery pack (coverage, third platform), **partial by design** as the roadmap promised:
+explicit object bindings plus the project IAM policy, with everything else stated as UNKNOWN.
+
+### Added
+- **`db-access-audit --dialect bigquery`** (recorded via `--recorded <dir>`; live capture through
+  the user's own `bq` and `gcloud`). SQL over `INFORMATION_SCHEMA.OBJECT_PRIVILEGES` (queried per
+  dataset and per table, as the view requires), `COLUMNS`, `TABLES`/`VIEWS`, and `JOBS`; JSON
+  captures for the project IAM policy (the inherited access OBJECT_PRIVILEGES never lists),
+  user-managed service-account keys, the `_Default` log bucket, and row access policies; policy
+  tags from `bq show --schema`. The module maps IAM roles to capabilities (dataViewer / dataEditor
+  / dataOwner / admin), applies project-level roles to every dataset, dataset-level to every
+  table, `allUsers` / `allAuthenticatedUsers` to everyone, and notes access as latent when the
+  principal has no `jobUser`/`user` role in the project. Basic roles (Owner / Editor / Viewer) are
+  identity breadth, not table access; conditional bindings are excluded; grants on views are kept
+  out of PII exposure. PII names come from `COLUMN_FIELD_PATHS` (nested STRUCT fields count).
+  DB-08 joins policy tags AND data policies to readable PII fields. DB-05 is INFO (Data Access
+  logs are on by default); DB-09 reports the principal's own cache hits and `_Default` retention.
+  DB-10 covers project-level Cloud Storage write roles and readable EXTERNAL tables. A `bq ls`
+  manifest proves the per-table capture completed. Permanent DB-06s for: explicit-bindings-only,
+  group / domain / principal-set membership, custom roles, conditional bindings, deny policies and
+  principal access boundaries, authorized views, taxonomy and data-policy IAM. Eight BigQuery doc
+  pages verified for the citation registry.
+- Module dialects may declare `JSON_INPUTS` (and `OPTIONAL_JSON_INPUTS`); the loader reads
+  `<name>.json`, and a missing or invalid required file is a DB-06 naming the capture command.
+- `doctor` lists the BigQuery pack (`bq` + `gcloud`).
+
 ## [0.8.0] — 2026-09-13
 
 Amazon Redshift pack (coverage, second platform). Invariants unchanged; other dialects' verdicts
@@ -381,6 +409,7 @@ First public release. Feature-complete v1: audit-only, read-only, every finding 
   hunt): permission-glob precision, uniform fail-closed suppression, a value-leak in classification
   evidence, crash-resistance on hostile inputs, and a regex ReDoS were all fixed and regression-locked.
 
+[0.9.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.9.0
 [0.8.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.8.0
 [0.7.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.7.0
 [0.6.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.6.0

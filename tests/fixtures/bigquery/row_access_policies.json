@@ -1,0 +1,3 @@
+[
+  {"rowAccessPolicyReference": {"projectId": "acme-analytics", "datasetId": "app", "tableId": "orders", "policyId": "region_filter"}, "filterPredicate": "region = SESSION_USER()", "creationTime": "2026-05-01T00:00:00Z"}
+]

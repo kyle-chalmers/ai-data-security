@@ -586,6 +586,60 @@ python3 skills/db-access-audit/scripts/eval_grants.py --dialect redshift --recor
 if jq -e '(.findings | any(.check_id == "DB-ID-01" and .severity == "CRITICAL" and (.evidence | test("SUPERUSER")))) and (.findings | any(.check_id == "DB-01" and (.evidence | test("SUPERUSER"))))' "$TMP/out-super.json" >/dev/null; then echo "OK: superuser agent -> DB-ID-01 CRITICAL and DB-01"; else echo "FAIL: superuser handling"; fail=1; fi
 if python3 skills/db-access-audit/scripts/eval_grants.py --dialect redshift --role x --principal-confirmed >/dev/null 2>&1; then echo "FAIL: --dialect redshift without --recorded accepted"; fail=1; else echo "OK: --dialect redshift requires --recorded"; fi
 
+step "db-access-audit bigquery pack (v0.9, partial by design): recorded bq CSVs + gcloud JSON -> module verdicts"
+BQ="tests/fixtures/bigquery"; SA="serviceAccount:ai-agent@acme-analytics.iam.gserviceaccount.com"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect bigquery --recorded "$BQ" \
+  --role "$SA" --principal-confirmed --ignore-dir "$BQ" --emit-json "$TMP/out.json"
+assert "DB-01 CRITICAL: explicit dataEditor on app.customers" \
+  '.findings | any(.check_id == "DB-01" and .severity == "CRITICAL" and (.evidence | test("app.customers:roles/bigquery.dataEditor \\(direct\\)")))'
+assert "DB-02 HIGH: table reads incl. everyone (allAuthenticatedUsers) and the PROJECT-level dataViewer that OBJECT_PRIVILEGES never lists" \
+  '.findings | any(.check_id == "DB-02" and .severity == "HIGH" and (.evidence | test("app.orders \\(via .allAuthenticatedUsers. \\(everyone\\)\\)")) and (.evidence | test("project:roles/bigquery.dataViewer")))'
+assert "DB-03 HIGH/MEDIUM with the Fine-Grained Reader caveat; nested STRUCT fields (contact.email, contact.phone) count" \
+  '(.findings | any(.check_id == "DB-03" and .severity == "HIGH" and (.evidence | test("app.customers.ssn")) and (.evidence | test("Fine-Grained Reader")))) and (.findings | any(.check_id == "DB-03" and .severity == "MEDIUM" and (.evidence | test("contact.email")) and (.evidence | test("contact.phone"))))'
+assert "DB-08 HIGH: untagged PII fields (card_number, contact.email, full_name); ssn policy-tagged and contact.phone data-policy-governed each get a DB-06" \
+  '(.findings | any(.check_id == "DB-08" and .severity == "HIGH" and (.evidence | test("1 policy-tagged and 1 data-policy-governed")) and (.evidence | test("app.customers.card_number")) and (.evidence | test("app.customers.contact.email")) and (.evidence | test("Policy-tagged and readable")) and (.evidence | test("app.customers.ssn")) and (.evidence | test("Data-policy-governed")) and (.evidence | test("contact.phone")))) and (.unknowns | any(.check_id == "DB-06" and (.reason | test("Fine-Grained Reader")))) and (.unknowns | any(.check_id == "DB-06" and (.reason | test("data policies govern"))))'
+assert "DB-04 absent: a policy tag exists (a governed layer of sorts) — only the view heuristic is negative" '[.findings[] | select(.check_id == "DB-04")] | length == 0'
+assert "DB-05 INFO: Data Access logs on by default; _Default retention 30 days stated" \
+  '.findings | any(.check_id == "DB-05" and .severity == "INFO" and (.evidence | test("on by default")) and (.evidence | test("retains 30 day")))'
+assert "DB-09 MEDIUM/probable: 42 of the principal's 310 jobs were cache hits; 30-day retention" \
+  '.findings | any(.check_id == "DB-09" and .severity == "MEDIUM" and .confidence == "probable" and (.evidence | test("42 of the principal.s 310")) and (.evidence | test("retention is 30 days")))'
+assert "DB-ID-01 HIGH: one user-managed service-account key; principal kind service account (no user/group complaint)" \
+  '.findings | any(.check_id == "DB-ID-01" and .severity == "HIGH" and (.evidence | test("1 user-managed service-account key")) and (.evidence | test("USER account") | not))'
+assert "DB-07 HIGH: the project-level dataViewer is the inherited path OBJECT_PRIVILEGES would not show" \
+  '.findings | any(.check_id == "DB-07" and .severity == "HIGH" and (.evidence | test("project:roles/bigquery.dataViewer \\(inherited by every dataset; subject to deny policies not captured\\)")))'
+assert "DB-10 CRITICAL: storage.objectCreator at project level (EXPORT DATA path) + readable EXTERNAL table" \
+  '.findings | any(.check_id == "DB-10" and .severity == "CRITICAL" and (.evidence | test("roles/storage.objectCreator")) and (.evidence | test("events_ext")))'
+assert "row access policy reported as INFO on orders" '.findings | any(.check_id == "DB-08" and .severity == "INFO" and (.evidence | test("orders")))'
+assert "permanent UNKNOWNs: explicit-bindings precondition, Google Group bindings (project AND the table-level group binding), custom role, PAB/folder, conditional dataOwner excluded" \
+  '(.unknowns | any(.reason | test("explicit bindings only"))) and (.unknowns | any(.reason | test("Google Groups"))) and (.unknowns | any(.reason | test("TABLE customers:roles/bigquery.dataViewer → group:analysts"))) and (.unknowns | any(.reason | test("customLakeReader"))) and (.unknowns | any(.reason | test("principal access boundary"))) and (.unknowns | any(.reason | test("dataOwner carries an IAM condition")))'
+assert "the conditional dataOwner binding is NOT counted: DB-01 evidence has no project:roles/bigquery.dataOwner" \
+  '[.findings[] | select(.check_id == "DB-01" and (.evidence | test("project:roles/bigquery.dataOwner")))] | length == 0'
+assert "manifest complete: no 'capture incomplete' DB-06; deny_policies.json empty list -> no deny DB-06" \
+  '([.unknowns[] | select(.reason | test("capture incomplete"))] | length == 0) and ([.unknowns[] | select(.reason | test("deny policy"))] | length == 0)'
+assert "plan_inputs: partial_by_design true, project_roles listed, planner unsupported" \
+  '(.plan_inputs.partial_by_design == true) and (.plan_inputs.project_roles | index("roles/bigquery.jobUser") != null) and (.plan_inputs.planner_supported == false)'
+assert "every bigquery finding carries citations and a fingerprint; no key material echoed" \
+  '([.findings[] | (.citations | length > 0) and (.fingerprint | length > 0)] | all) and ([tostring | test("privateKey|BEGIN PRIVATE KEY")] == [false])'
+# a human user as the agent with project dataViewer but no jobUser -> DB-ID-01 says USER; access noted as latent
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect bigquery --recorded "$BQ" --role "user:contractor@example.invalid" --principal-confirmed --emit-json "$TMP/out-user.json"
+if jq -e '(.findings | any(.check_id == "DB-ID-01" and .severity == "HIGH" and (.evidence | test("USER account")))) and (.findings | any(.check_id == "DB-02" and (.evidence | test("project:roles/bigquery.dataViewer")) and (.evidence | test("cannot run queries in this project")))) and ([.unknowns[] | select(.reason | test("sa_keys.json was not captured"))] | length == 0)' "$TMP/out-user.json" >/dev/null; then echo "OK: human user as agent -> DB-ID-01 HIGH; project dataViewer without jobUser -> latent note; no SA-key DB-06 for a user"; else echo "FAIL: user principal / latent handling"; fail=1; fi
+# the project Owner as agent -> CRITICAL identity breadth, but Owner is NOT counted as table read/write (dataset ACLs not captured -> DB-06)
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect bigquery --recorded "$BQ" --role "user:data-eng@example.invalid" --principal-confirmed --emit-json "$TMP/out-owner.json"
+if jq -e '(.findings | any(.check_id == "DB-ID-01" and .severity == "CRITICAL" and (.evidence | test("roles/owner")))) and ([.findings[] | select(.check_id == "DB-02" and (.evidence | test("project:roles/owner")))] | length == 0) and (.unknowns | any(.reason | test("basic role")))' "$TMP/out-owner.json" >/dev/null; then echo "OK: project Owner as agent -> DB-ID-01 CRITICAL; basic role not inferred as table access (DB-06)"; else echo "FAIL: owner principal handling"; fail=1; fi
+# incomplete per-table capture: a manifest table with no masked_views row -> DB-06
+BQI="$TMP/bq-incomplete"; mkdir -p "$BQI"; cp "$BQ"/*.csv "$BQ"/*.json "$BQI"/; printf 'payments,TABLE,,,\n' >> "$BQI/tables_manifest.csv"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect bigquery --recorded "$BQI" --role "$SA" --principal-confirmed --emit-json "$TMP/out-inc.json"
+if jq -e '.unknowns | any(.reason | test("capture incomplete") and test("payments"))' "$TMP/out-inc.json" >/dev/null; then echo "OK: manifest table without a captured row -> DB-06 capture incomplete"; else echo "FAIL: manifest completeness"; fail=1; fi
+# deny policies present -> DB-06 that allow findings may be overstated
+BQD="$TMP/bq-deny"; mkdir -p "$BQD"; cp "$BQ"/*.csv "$BQ"/*.json "$BQD"/; echo '[{"name":"policies/cloudresourcemanager.googleapis.com%2Fprojects%2F1234/denypolicies/block-export"}]' > "$BQD/deny_policies.json"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect bigquery --recorded "$BQD" --role "$SA" --principal-confirmed --emit-json "$TMP/out-deny.json"
+if jq -e '.unknowns | any(.reason | test("1 IAM deny policy"))' "$TMP/out-deny.json" >/dev/null; then echo "OK: deny policies present -> DB-06 (allow findings may overstate)"; else echo "FAIL: deny policy handling"; fail=1; fi
+# missing and malformed JSON inputs fail closed
+BQM="$TMP/bq-missing"; mkdir -p "$BQM"; cp "$BQ"/*.csv "$BQM"/; printf '{not json' > "$BQM/iam_policy.json"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect bigquery --recorded "$BQM" --role "$SA" --principal-confirmed --emit-json "$TMP/out-miss.json"
+if jq -e '(.unknowns | any(.check_id == "DB-06" and (.reason | test("iam_policy.json. is not valid JSON")))) and ([.unknowns[] | select(.reason | test("json. missing"))] | length == 3) and (.unknowns | any(.reason | test("sa_keys.json was not captured"))) and ([.findings[] | select(.check_id == "DB-07" and (.evidence | test("project:")))] | length == 0)' "$TMP/out-miss.json" >/dev/null; then echo "OK: malformed iam_policy.json and missing required JSON -> DB-06s (sa_keys optional but flagged for a service account); no project-level claims invented"; else echo "FAIL: JSON input fail-closed handling"; fail=1; fi
+if out="$(python3 skills/safe-db-access/scripts/plan.py --audit "$TMP/out.json" 2>&1 >/dev/null)"; then echo "FAIL: planner rendered for bigquery"; fail=1; else echo "OK: planner refuses bigquery (no templates)"; fi
+
 step "db-access-audit snowflake pack: script-computed verdicts match expected_findings.md"
 # v0.7 carry-over from the v0.4 gate: the audit session's own CURRENT_ROLE() is compared to --role
 SFF="tests/fixtures/snowflake"

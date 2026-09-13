@@ -1,0 +1,5 @@
+table_schema,table_name,table_type,definition_visible,has_masking_signal
+app,customers,BASE TABLE,false,false
+app,orders,BASE TABLE,false,false
+app,events_ext,EXTERNAL,false,false
+app,customer_summary_v,VIEW,true,false

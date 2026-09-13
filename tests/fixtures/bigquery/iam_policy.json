@@ -1,0 +1,49 @@
+{
+  "bindings": [
+    {
+      "role": "roles/bigquery.dataViewer",
+      "members": [
+        "serviceAccount:ai-agent@acme-analytics.iam.gserviceaccount.com",
+        "group:analysts@example.invalid",
+        "user:contractor@example.invalid"
+      ]
+    },
+    {
+      "role": "roles/bigquery.jobUser",
+      "members": [
+        "serviceAccount:ai-agent@acme-analytics.iam.gserviceaccount.com"
+      ]
+    },
+    {
+      "role": "roles/storage.objectCreator",
+      "members": [
+        "serviceAccount:ai-agent@acme-analytics.iam.gserviceaccount.com"
+      ]
+    },
+    {
+      "role": "roles/owner",
+      "members": [
+        "user:data-eng@example.invalid"
+      ]
+    },
+    {
+      "role": "projects/acme-analytics/roles/customLakeReader",
+      "members": [
+        "group:lake-readers@example.invalid",
+        "serviceAccount:ai-agent@acme-analytics.iam.gserviceaccount.com"
+      ]
+    },
+    {
+      "role": "roles/bigquery.dataOwner",
+      "members": [
+        "serviceAccount:ai-agent@acme-analytics.iam.gserviceaccount.com"
+      ],
+      "condition": {
+        "title": "office-hours",
+        "expression": "request.time.getHours('UTC') >= 8 && request.time.getHours('UTC') <= 18"
+      }
+    }
+  ],
+  "etag": "FIXTURE",
+  "version": 1
+}

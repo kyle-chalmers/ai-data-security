@@ -1,0 +1,3 @@
+[
+  {"name": "projects/acme-analytics/serviceAccounts/ai-agent@acme-analytics.iam.gserviceaccount.com/keys/fixture-key-one", "keyType": "USER_MANAGED", "validAfterTime": "2026-01-01T00:00:00Z", "validBeforeTime": "9999-12-31T23:59:59Z"}
+]

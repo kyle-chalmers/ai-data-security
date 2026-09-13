@@ -245,6 +245,13 @@
       "description": "Redshift pack + dialect module: transitive roles, groups, PUBLIC, schema-USAGE effective access, secadmin-aware DB-08, IAM-auth identity",
       "check": "run-fixture-checks 'redshift pack' step",
       "passes": true
+    },
+    {
+      "id": "S14.1-bigquery-pack",
+      "slice": "14",
+      "description": "BigQuery pack + module (partial by design): OBJECT_PRIVILEGES per object + project IAM JSON, policy tags, SA keys, log bucket, row access policies; role->capability map; permanent UNKNOWNs for what IAM hides",
+      "check": "run-fixture-checks 'bigquery pack' step",
+      "passes": true
     }
   ]
 }

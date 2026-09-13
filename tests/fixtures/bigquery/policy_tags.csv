@@ -1,0 +1,3 @@
+table_name,field_path,policy_tags,data_policies
+customers,ssn,projects/123456/locations/us/taxonomies/789/policyTags/201,
+customers,contact.phone,,projects/123456/locations/us/dataPolicies/phone_mask
