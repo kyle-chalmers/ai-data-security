@@ -1,0 +1,1 @@
+REVOKE {{member}} FROM {{role}};

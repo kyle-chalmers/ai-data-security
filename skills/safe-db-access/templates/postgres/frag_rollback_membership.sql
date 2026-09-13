@@ -1,0 +1,1 @@
+GRANT {{member}} TO {{role}};

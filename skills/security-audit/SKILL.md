@@ -20,6 +20,7 @@ before starting.
 | 3 | Classification | Invoke skill `ai-data-security:data-classification` with the target path |
 | 3b | dbt declarations | ONLY if a `dbt_project.yml` exists at the target or one level down: invoke skill `ai-data-security:dbt-governance-audit` with that project path. Otherwise skip silently (nothing to audit, not an UNKNOWN) |
 | 4 | Database | ONLY if `--db '<args>'` was provided: invoke skill `ai-data-security:db-access-audit` with exactly those args. Otherwise record a DB-06 UNKNOWN: "DB audit skipped — no connection provided" |
+| 4b | Plan | ONLY if phase 4 ran and produced DB findings: invoke skill `ai-data-security:safe-db-access` with `--audit <that eval JSON>` and append the rendered plan (text only; nothing is executed) after the merged report |
 
 ## Steps
 

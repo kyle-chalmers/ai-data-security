@@ -71,7 +71,7 @@ Make DB findings name a remediable boundary and say what they could not see.
 | PII validators: phone (E.164 and NANP), IBAN (mod-97), IPv4/IPv6 | coverage boundary from repo recon | `classify_hints.py`, framework doc | S | matcher tests; no value ever appears in evidence | v1 |
 | **dbt static audit** (`dbt-governance-audit`): PII `meta` tags per model and column, exposures consuming tagged models, masking package presence in `packages.yml`; every finding says a missing tag is not proof of no PII. Decided 2026-09-11: lives in this plugin | Lane 3 dbt addendum; Codex C35 | new skill, stdlib YAML-subset parser or JSON manifest | L | fixture dbt project → tagged column without downstream masking → MEDIUM | v1 |
 
-## v0.6 — safe-db-access **planner** (**fix**, read-only) — *approved SPEC amendment, 2026-09-11*
+## v0.6 — safe-db-access **planner** (**fix**, read-only) — *approved SPEC amendment, 2026-09-11* — shipped 2026-09-12 as v0.6.0
 
 SPEC.md listed the safe-db-access IMPLEMENT recipe under "Out of scope for v1"; the maintainer approved
 a narrow amendment (recorded in `SPEC.md`) allowing the recipe to be **generated as text** for human

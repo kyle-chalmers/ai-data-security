@@ -69,8 +69,9 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
      `identity.sql` and `audit_quality.sql` take `-D "user=<ai-user>"`; `policy_references.sql`
      takes `-D "db=..."`) and output capture; Snowflake support is fixture-validated (no live CI
      account) — say so in the report header.
-   - The Postgres pack now has nine files (`identity`, `policy_attachment`, `external_paths`,
-     `audit_quality` are new in v0.4); all run under the same read-only PGOPTIONS.
+   - The Postgres pack has ten files (`identity`, `policy_attachment`, `external_paths`,
+     `audit_quality` since v0.4; `columns` since v0.6, which feeds the planner and produces no
+     finding); all run under the same read-only PGOPTIONS.
 
    Any query failure → that section is `DB-06` UNKNOWN (fail-closed, never a pass), keep going
    with the rest.
@@ -84,7 +85,8 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
      --identity <tmp>/identity.<csv|txt> \
      --policies <tmp>/policy_attachment.csv|<tmp>/policy_references.txt \
      --external <tmp>/external_paths.csv --audit-quality <tmp>/audit_quality.<csv|txt> \
-     --role <role> [--principal-confirmed] --ignore-dir <dir>
+     --columns <tmp>/columns.csv \
+     --role <role> [--principal-confirmed] --ignore-dir <dir> --emit-json <tmp>/eval.json
    ```
    The four v0.4 inputs are optional: leave one out (or point at a file whose query failed) and
    the script reports that check as DB-06 UNKNOWN with the statement to capture. Never fabricate
@@ -104,6 +106,10 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
    anonymized) → an audit trail someone can read, with result-cache reuse off for the agent.
    DB-ID-01, DB-07, and DB-08 are the findings that say *why* the current role name is not the
    boundary; put them next to DB-02/DB-03 in the narrative.
+
+6. **Offer the plan.** The eval JSON (`--emit-json`) carries a `plan_inputs` block;
+   `/ai-data-security:safe-db-access --audit <tmp>/eval.json` renders the whole recipe above as
+   reviewable SQL text (never executed). Mention it once at the end of the report.
 
 If invoked by the `security-audit` orchestrator: only run when connection arguments were
 provided; otherwise return a single DB-06 UNKNOWN ("DB audit skipped — no connection provided")

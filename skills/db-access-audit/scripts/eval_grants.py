@@ -49,6 +49,7 @@ import csv
 import datetime
 import json
 import os
+import re
 
 PLUGIN_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 SCHEMA_VERSION = 1
@@ -62,6 +63,7 @@ CONFIDENCE_CAP = {"possible": "MEDIUM", "probable": "HIGH", "confirmed": "CRITIC
 REQUIRED_COLUMNS = {
     "grants": {"table_schema", "table_name", "privilege_type", "object_kind"},
     "pii_columns": {"table_schema", "table_name", "column_name", "tier_floor"},
+    "columns": {"table_schema", "table_name", "column_name", "data_type", "ordinal_position"},
     "masked_views": {"has_masking_signal"},
     "audit_logging": {"name", "setting"},
     "identity": {"kind", "name", "detail"},
@@ -319,6 +321,10 @@ def snowflake_findings(args, confidence, unknowns):
             r for r in parsed["pii_columns"][0]
             if (r.get("table_schema", "").upper(), r.get("table_name", "").upper()) in readable
         ]
+        sf_views = parsed["masked_views"][1] if parsed.get("masked_views") and len(parsed["masked_views"]) > 1 else None
+        pseudo_set = pseudonymized_set("snowflake", exposed, sf_views)
+        pseudo_rows = [r for r in exposed if (r["table_schema"], r["table_name"], r["column_name"]) in pseudo_set]
+        exposed = [r for r in exposed if (r["table_schema"], r["table_name"], r["column_name"]) not in pseudo_set]
         restricted = sorted(
             f"{r['table_schema']}.{r['table_name']}.{r['column_name']}"
             for r in exposed if r.get("tier_floor") == "Restricted"
@@ -334,9 +340,21 @@ def snowflake_findings(args, confidence, unknowns):
                 f"PII-named columns at Restricted floor readable unmasked: {', '.join(restricted)} "
                 "(column names only; no data sampled).",
                 [
-                    "Serve these through masked views (hash email, last-4 account, omit SSN/PAN).",
-                    "Apply per-row salted hashing where joins are needed; keep the salt out of the AI role's reach.",
+                    "Serve these through masked views (omit SSN/PAN; keyed-hash the join keys).",
+                    "Where joins are needed use keyed hashing (HMAC) or tokenization with the key outside the AI role's reach — not a salt table beside the data. /ai-data-security:safe-db-access renders this.",
                 ],
+            ))
+        pseudonymized = sorted(
+            f"{r['table_schema']}.{r['table_name']}.{r['column_name']}" for r in pseudo_rows
+        )
+        if pseudonymized:
+            findings.append(finding(
+                "DB-03", f"Pseudonymized PII-derived columns readable by '{args.role}' (still personal data)",
+                "INFO", confidence, ";".join(pseudonymized[:3]),
+                f"Pseudonymized columns readable (suffix _pseudo/_hash/_hmac/_token AND the object is a view whose definition hashes/masks): {', '.join(pseudonymized)}. "
+                "Hashed identifiers remain personal data "
+                "(NIST SP 800-188 §4.3.2); the key must stay outside the AI role's reach.",
+                ["Confirm the key vault schema is not readable by the AI role and that the hash is keyed."],
             ))
         if confidential:
             findings.append(finding(
@@ -476,6 +494,9 @@ def snowflake_v04_findings(args, confidence, unknowns, readable, parsed):
         r for r in pii_rows
         if (r.get("table_schema", "").upper(), r.get("table_name", "").upper()) in readable
     ]
+    sf_views = parsed["masked_views"][1] if parsed.get("masked_views") and len(parsed["masked_views"]) > 1 else None
+    pseudo_set = pseudonymized_set("snowflake", readable_pii, sf_views)
+    readable_pii = [r for r in readable_pii if (r["table_schema"], r["table_name"], r["column_name"]) not in pseudo_set]
     if refs is None or not sf_tables_ok("policy_references", refs):
         v04_unknown("policy_references", "snow sql -D \"db=<db>\" -f policy_references.sql", unknowns,
                     f" Requires `{GOVERNANCE_VIEW_ROLE}`; without it DB-08 stays UNKNOWN, not clear.")
@@ -566,6 +587,8 @@ def postgres_v04_findings(args, confidence, unknowns, grants, pii):
     if grants is not None and pii is not None:
         readable = {(g["table_schema"], g["table_name"]) for g in grants if g["privilege_type"] == "SELECT"}
         readable_pii = [p for p in pii if (p["table_schema"], p["table_name"]) in readable]
+        pseudo_set = pseudonymized_set("postgres", readable_pii, read_csv(args.views))
+        readable_pii = [p for p in readable_pii if (p["table_schema"], p["table_name"], p["column_name"]) not in pseudo_set]
 
     def load(name, argpath, statement):
         data = read_csv(argpath) if argpath else None
@@ -619,7 +642,7 @@ def postgres_v04_findings(args, confidence, unknowns, grants, pii):
                     schema, _, table = r["name"].partition(".")
                     if priv == "SELECT" and (schema, table) in pii_tables:
                         paths.append(f"{r['kind']} {r['name']} via {r['detail']}")
-                elif r["kind"] == "default_acl" and r["detail"] == "SELECT":
+                elif r["kind"] == "default_acl" and r["detail"].rsplit(":", 1)[-1] == "SELECT":
                     paths.append(f"default privileges {r['name']}: future tables readable automatically")
         if paths:
             findings.append(finding(
@@ -710,6 +733,141 @@ def postgres_v04_findings(args, confidence, unknowns, grants, pii):
     return findings
 
 
+PSEUDO_SUFFIX = re.compile(r"_(pseudo|pseudonym|pseudonymized|hash|hashed|hmac|token|tokenized)$", re.I)
+HASH_SIGNAL_SF = re.compile(r"(sha2|sha1|md5|hash|hmac|mask|tokeniz)", re.I)
+
+
+def pseudonymized_set(dialect, pii_rows, views_input):
+    """(schema, table, column) triples that count as pseudonymized: the NAME carries a
+    pseudonymization suffix AND the OBJECT is a view whose definition shows a hashing/masking
+    signal (Postgres: masked_views.has_masking_signal; Snowflake: SHOW VIEWS `text`). A base-table
+    column named ssn_hash is NOT pseudonymized: names are not evidence, provenance is. Anything
+    unverifiable (no views input, no `text` column) is not pseudonymized — fail closed."""
+    out = set()
+    if not pii_rows or views_input is None:
+        return out
+    signal_objects = set()
+    if dialect == "postgres":
+        for v in views_input:
+            if v.get("has_masking_signal") in ("t", "true", "True"):
+                signal_objects.add((v.get("table_schema", ""), v.get("table_name", "")))
+    else:
+        for v in views_input:
+            text = v.get("text")
+            if text and HASH_SIGNAL_SF.search(text):
+                signal_objects.add((v.get("schema_name", "").upper(), v.get("name", "").upper()))
+    for r in pii_rows:
+        s, n, c = r.get("table_schema", ""), r.get("table_name", ""), r.get("column_name", "")
+        key = (s, n) if dialect == "postgres" else (s.upper(), n.upper())
+        if PSEUDO_SUFFIX.search(c or "") and key in signal_objects:
+            out.add((s, n, c))
+    return out
+
+
+def _split_sf_name(name):
+    parts = (name or "").split(".")
+    return parts if len(parts) == 3 else [None, None, name]
+
+
+def build_plan_inputs(args):
+    """Structured, value-free facts for the safe-db-access planner (v0.6). Independent of the
+    findings above: re-reads the same inputs so a missing input is `null` here, never guessed.
+    Object names are passed through as captured; the planner validates every identifier before
+    it renders anything."""
+    pi = {"dialect": args.dialect, "role": args.role, "database": None, "raw_tables": [], "pii_columns": [],
+          "columns": None, "write_grants": [], "inherited_roles": [], "server_roles": [], "public_grants": [],
+          "default_acl": [], "external_objects": [], "user": None, "user_type": None,
+          "secondary_roles_all": None, "user_roles": [], "inputs_present": {}}
+    if args.dialect == "snowflake":
+        grants = parse_show_tables(args.grants)
+        pi["inputs_present"]["grants"] = bool(grants) and sf_tables_ok("grants", grants)
+        if pi["inputs_present"]["grants"]:
+            dbs = set()
+            for r in grants[0]:
+                on, priv, name = r.get("granted_on", "").upper(), r.get("privilege", "").upper(), r.get("name", "")
+                if on == "TABLE":
+                    db, sch, tbl = _split_sf_name(name)
+                    if db:
+                        dbs.add(db)
+                        entry = {"schema": sch, "table": tbl}
+                        if priv == "SELECT" and entry not in pi["raw_tables"]:
+                            pi["raw_tables"].append(entry)
+                        if priv in WRITE_PRIVS_SF:
+                            pi["write_grants"].append({"schema": sch, "table": tbl, "privilege": priv})
+                elif on == "ROLE" and priv == "USAGE":
+                    pi["inherited_roles"].append(name)
+                elif on in ("STAGE", "INTEGRATION"):
+                    pi["external_objects"].append({"kind": on, "name": name, "privilege": priv})
+            pi["database"] = sorted(dbs)[0] if len(dbs) == 1 else None
+        pii = parse_show_tables(args.pii)
+        pi["inputs_present"]["pii_columns"] = bool(pii) and sf_tables_ok("pii_columns", pii)
+        if pi["inputs_present"]["pii_columns"]:
+            views = parse_show_tables(args.views)
+            sf_views = views[1] if views and len(views) > 1 else None
+            pseudo_set = pseudonymized_set("snowflake", pii[0], sf_views)
+            pi["pii_columns"] = [{"schema": r.get("table_schema"), "table": r.get("table_name"),
+                                  "column": r.get("column_name"), "type": r.get("data_type"),
+                                  "tier": "Pseudonymized" if (r.get("table_schema"), r.get("table_name"), r.get("column_name")) in pseudo_set else r.get("tier_floor")}
+                                 for r in pii[0]]
+        ident = parse_show_tables(args.identity) if args.identity else None
+        pi["inputs_present"]["identity"] = bool(ident) and sf_tables_ok("identity", ident)
+        if pi["inputs_present"]["identity"]:
+            props = _desc_user(ident[0])
+            pi["user"] = props.get("NAME") or None
+            pi["user_type"] = (props.get("TYPE") or "").upper() or None
+            sec = props.get("DEFAULT_SECONDARY_ROLES")
+            pi["secondary_roles_all"] = ("ALL" in sec.upper()) if sec is not None else None
+            pi["user_roles"] = sorted({r.get("role", "") for r in ident[1] if r.get("role")}) if len(ident) > 1 else []
+        pi["columns"] = None  # Snowflake views use SELECT * EXCLUDE; no column list needed
+    else:
+        grants, pii = read_csv(args.grants), read_csv(args.pii)
+        pi["inputs_present"]["grants"] = grants is not None and (not grants or REQUIRED_COLUMNS["grants"].issubset(grants[0].keys()))
+        if pi["inputs_present"]["grants"]:
+            for g in grants:
+                entry = {"schema": g["table_schema"], "table": g["table_name"]}
+                if g["privilege_type"] == "SELECT" and g["object_kind"] == "base table" and entry not in pi["raw_tables"]:
+                    pi["raw_tables"].append(entry)
+                if g["privilege_type"] in WRITE_PRIVS:
+                    pi["write_grants"].append({**entry, "privilege": g["privilege_type"]})
+        pi["inputs_present"]["pii_columns"] = pii is not None and (not pii or REQUIRED_COLUMNS["pii_columns"].issubset(pii[0].keys()))
+        if pi["inputs_present"]["pii_columns"]:
+            pseudo_set = pseudonymized_set("postgres", pii, read_csv(args.views))
+            pi["pii_columns"] = [{"schema": p["table_schema"], "table": p["table_name"], "column": p["column_name"],
+                                  "type": p.get("data_type"),
+                                  "tier": "Pseudonymized" if (p["table_schema"], p["table_name"], p["column_name"]) in pseudo_set else p["tier_floor"]}
+                                 for p in pii]
+        cols = read_csv(args.columns) if args.columns else None
+        pi["inputs_present"]["columns"] = cols is not None and (not cols or REQUIRED_COLUMNS["columns"].issubset(cols[0].keys()))
+        if pi["inputs_present"]["columns"]:
+            pi["columns"] = [{"schema": c["table_schema"], "table": c["table_name"], "column": c["column_name"],
+                              "type": c["data_type"], "position": int(c["ordinal_position"]) if str(c["ordinal_position"]).isdigit() else 0}
+                             for c in cols]
+        ident = read_csv(args.identity) if args.identity else None
+        pi["inputs_present"]["identity"] = ident is not None and (not ident or REQUIRED_COLUMNS["identity"].issubset(ident[0].keys()))
+        if pi["inputs_present"]["identity"]:
+            pi["inherited_roles"] = sorted({r["name"] for r in ident if r["kind"] == "member_of" and r["name"] not in SERVER_ROLES_PG})
+            pi["server_roles"] = sorted({r["name"] for r in ident if r["kind"] == "member_of" and r["name"] in SERVER_ROLES_PG})
+            pi["public_grants"] = [{"object": o, "privilege": pv} for o, pv in
+                                   sorted({(r["name"], r["detail"]) for r in ident if r["kind"] == "public_grant"})]
+            acl = set()
+            for r in ident:
+                if r["kind"] != "default_acl":
+                    continue
+                scope, _, objtype = r["name"].partition(":")
+                grantor, _, priv = r["detail"].rpartition(":")
+                acl.add((None if scope == "<all schemas>" else scope, objtype, grantor or None, priv))
+            pi["default_acl"] = [{"schema": s, "objtype": o, "grantor": g, "privilege": pv}
+                                 for s, o, g, pv in sorted(acl, key=lambda x: (x[0] or "", x[1], x[2] or "", x[3]))]
+        ext = read_csv(args.external) if args.external else None
+        if ext is not None and (not ext or REQUIRED_COLUMNS["external_paths"].issubset(ext[0].keys())):
+            pi["external_objects"] = [{"kind": r["kind"], "name": r["name"], "privilege": ""} for r in ext if r["kind"] in ("server_role", "foreign_server")]
+    pi["raw_tables"].sort(key=lambda e: (e["schema"] or "", e["table"] or ""))
+    pi["pii_columns"].sort(key=lambda e: (e["schema"] or "", e["table"] or "", e["column"] or ""))
+    pi["write_grants"].sort(key=lambda e: (e["schema"] or "", e["table"] or "", e["privilege"]))
+    pi["inherited_roles"] = sorted(set(pi["inherited_roles"]))
+    return pi
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dialect", choices=["postgres", "snowflake"], default="postgres")
@@ -721,6 +879,7 @@ def main():
     parser.add_argument("--policies", help="v0.4: policy_attachment.csv (pg) or policy_references.txt (sf)")
     parser.add_argument("--external", help="v0.4: external_paths.csv (pg; sf uses grants)")
     parser.add_argument("--audit-quality", help="v0.4: audit_quality.sql output")
+    parser.add_argument("--columns", help="v0.6 (postgres): columns.csv — full column lists for the planner")
     parser.add_argument("--role", required=True, help="the AI principal analyzed")
     parser.add_argument("--principal-confirmed", action="store_true",
                         help="user explicitly confirmed --role is the AI principal")
@@ -806,6 +965,9 @@ def main():
                     for g in grants if g["privilege_type"] == "SELECT"
                 }
                 exposed = [p for p in pii if (p["table_schema"], p["table_name"]) in readable]
+                pseudo_set = pseudonymized_set("postgres", exposed, views)
+                pseudo_rows = [p for p in exposed if (p["table_schema"], p["table_name"], p["column_name"]) in pseudo_set]
+                exposed = [p for p in exposed if (p["table_schema"], p["table_name"], p["column_name"]) not in pseudo_set]
                 restricted = sorted(
                     f"{p['table_schema']}.{p['table_name']}.{p['column_name']}"
                     for p in exposed if p["tier_floor"] == "Restricted"
@@ -821,9 +983,21 @@ def main():
                         f"PII-named columns at Restricted floor readable unmasked: {', '.join(restricted)} "
                         "(column names only; no data sampled).",
                         [
-                            "Serve these through masked views (hash email, last-4 account, omit SSN/PAN).",
-                            "Apply per-row salted hashing where joins are needed; keep the salt out of the AI role's reach.",
+                            "Serve these through masked views (omit SSN/PAN; keyed-hash the join keys).",
+                            "Where joins are needed use keyed hashing (HMAC) or tokenization with the key outside the AI role's reach — not a salt table beside the data. /ai-data-security:safe-db-access renders this.",
                         ],
+                    ))
+                pseudonymized = sorted(
+                    f"{p['table_schema']}.{p['table_name']}.{p['column_name']}" for p in pseudo_rows
+                )
+                if pseudonymized:
+                    findings.append(finding(
+                        "DB-03", f"Pseudonymized PII-derived columns readable by '{args.role}' (still personal data)",
+                        "INFO", confidence, ";".join(pseudonymized[:3]),
+                        f"Pseudonymized columns readable (suffix _pseudo/_hash/_hmac/_token AND the object is a view whose definition hashes/masks): {', '.join(pseudonymized)}. "
+                        "Hashed identifiers remain personal data "
+                        "(NIST SP 800-188 §4.3.2); the key must stay outside the AI role's reach.",
+                        ["Confirm the key vault schema is not readable by the AI role and that the hash is keyed."],
                     ))
                 if confidential:
                     findings.append(finding(
@@ -924,10 +1098,11 @@ def main():
         "schema_version": SCHEMA_VERSION,
         "skill": "db-access-audit",
         "target": args.role,
-        "tools": {"eval_grants": "3", "dialect": args.dialect},
+        "tools": {"eval_grants": "4", "dialect": args.dialect},
         "findings": active,
         "unknowns": unknowns,
         "suppressed": suppressed,
+        "plan_inputs": build_plan_inputs(args),
     }
     output = json.dumps(result, indent=2)
     if args.emit_json:
