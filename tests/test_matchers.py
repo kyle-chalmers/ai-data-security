@@ -199,6 +199,13 @@ for raw, expect in [('{"roles":"AI_AGENT,ANALYST","value":"ALL"}', ["AI_AGENT", 
     if got != expect:
         failures.append(f"_secondary_roles({raw!r}) = {got!r}, expected {expect!r}")
 
+# v0.8: Redshift masking output_columns parsing (documented JSON-like array; brace form tolerated).
+rs = load("dialect_redshift", "skills/db-access-audit/scripts/dialects/redshift.py")
+for raw, expect in [('["email"]', ["email"]), ('["a", "b"]', ["a", "b"]), ('{email,ssn}', ["email", "ssn"]), ("", []), ('["person.name.first"]', ["person.name.first"]), ('[not json', ["not json"])]:
+    got = rs._columns(raw)
+    if got != expect:
+        failures.append(f"redshift _columns({raw!r}) = {got!r}, expected {expect!r}")
+
 # Fail-closed expiry: unparseable AND blank expires= must both count as expired.
 # Blank expires= (fail-open) was an edge-hardening finding — locked here across all evaluators.
 permeval = load("permeval", "skills/ai-config-audit/scripts/permeval.py")

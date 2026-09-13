@@ -1,0 +1,10 @@
+kind,name,detail
+attr,exists,true
+attr,usecreatedb,false
+attr,usesuper,false
+auditor,role,sys:secadmin
+auditor,user,admin
+auditor,usesuper,true
+group,bi_users,member
+role_role,analyst,reporting
+user_role,analyst,direct
