@@ -184,6 +184,21 @@ for cid, ok in [("DB-01", True), ("DB-ID-01", True), ("AC-10", True), ("DB-99\nD
     if bool(pl.CHECK_ID.match(cid)) is not ok:
         failures.append(f"CHECK_ID({cid!r}) != {ok}")
 
+# v0.7: Databricks principal kinds by shape (applicationId UUID = service principal).
+dbx = load("dialect_databricks", "skills/db-access-audit/scripts/dialects/databricks.py")
+for principal, kind in [("3f1c2b9e-7d4a-4c1e-9b2f-0a6d8e5f4c21", "service_principal"), ("ai-agent@example.invalid", "user"),
+                        ("analysts", "group"), ("account users", "everyone"), ("", "group")]:
+    if dbx._kind(principal) != kind:
+        failures.append(f"databricks _kind({principal!r}) != {kind}")
+
+# v0.7: CURRENT_SECONDARY_ROLES() parsing (documented shape: roles is a comma-separated string).
+for raw, expect in [('{"roles":"AI_AGENT,ANALYST","value":"ALL"}', ["AI_AGENT", "ANALYST"]), ('{"roles":"","value":""}', []),
+                    ('{"roles":["POWER_ROLE"],"value":"POWER_ROLE"}', ["POWER_ROLE"]), ('{"roles":"SMALL_ROLE","value":"SMALL_ROLE"}', ["SMALL_ROLE"]),
+                    ("not json", None), ("", None), ("[]", None)]:
+    got = eg._secondary_roles(raw)
+    if got != expect:
+        failures.append(f"_secondary_roles({raw!r}) = {got!r}, expected {expect!r}")
+
 # Fail-closed expiry: unparseable AND blank expires= must both count as expired.
 # Blank expires= (fail-open) was an edge-hardening finding — locked here across all evaluators.
 permeval = load("permeval", "skills/ai-config-audit/scripts/permeval.py")

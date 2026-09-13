@@ -467,7 +467,59 @@ python3 skills/db-access-audit/scripts/eval_grants.py \
 assert "pg with pii_columns missing: DB-07 not claimed; DB-06 says DB-07 was not assessed" \
   '([.findings[].check_id] | index("DB-07") == null) and (.unknowns | any(.reason | test("DB-07")))'
 
+step "db-access-audit databricks pack (v0.7): recorded Unity Catalog CSVs -> module verdicts"
+DBX="tests/fixtures/databricks"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect databricks --recorded "$DBX" \
+  --role ai-agent@example.invalid --principal-confirmed --ignore-dir "$DBX" --emit-json "$TMP/out.json"
+assert "DB-01 CRITICAL: direct MODIFY on app.customers and ownership of the external table app.orders" \
+  '.findings | any(.check_id == "DB-01" and .severity == "CRITICAL" and (.evidence | test("app.customers:MODIFY \\(direct\\)")) and (.evidence | test("Owns 1 securable\\(s\\): TABLE app.orders")))'
+assert "DB-02 HIGH: base tables read directly and via the analysts group's schema-level SELECT (inherited_from named)" \
+  '.findings | any(.check_id == "DB-02" and .severity == "HIGH" and (.evidence | test("app.customers \\(direct\\)")) and (.evidence | test("via group analysts, inherited from analytics.app")) and (.evidence | test("CATALOG analytics \\(via group all-data-readers\\)")))'
+assert "DB-03: Restricted (ssn, card_number) HIGH and Confidential (email, full_name) MEDIUM; names only" \
+  '(.findings | any(.check_id == "DB-03" and .severity == "HIGH" and (.evidence | test("ssn")) and (.evidence | test("card_number")))) and (.findings | any(.check_id == "DB-03" and .severity == "MEDIUM" and (.evidence | test("email"))))'
+assert "DB-04 MEDIUM: no views, no column masks" '.findings | any(.check_id == "DB-04" and .severity == "MEDIUM")'
+assert "DB-05 MEDIUM/probable: system.access exists but nobody but admins can read it" \
+  '.findings | any(.check_id == "DB-05" and .severity == "MEDIUM" and .confidence == "probable" and (.evidence | test("only account/metastore admins")))'
+assert "DB-08 HIGH: zero column masks on readable PII; row filter noted; ABAC exemptions flagged as invisible" \
+  '.findings | any(.check_id == "DB-08" and .severity == "HIGH" and (.evidence | test("0 column mask")) and (.evidence | test("Row filters exist on app.orders")) and (.evidence | test("exempt principals")))'
+assert "DB-09: query history schema not visible -> MEDIUM, probable" \
+  '.findings | any(.check_id == "DB-09" and .severity == "MEDIUM" and .confidence == "probable" and (.evidence | test("system.query")))'
+assert "DB-ID-01 CRITICAL: human user, 2 groups (1 nested), owns a table, and MANAGE on schema app via analysts" \
+  '.findings | any(.check_id == "DB-ID-01" and .severity == "CRITICAL" and (.evidence | test("is a USER")) and (.evidence | test("member of 2 group")) and (.evidence | test("1 through nesting: all-data-readers")) and (.evidence | test("holds MANAGE on SCHEMA app \\(via group analysts\\)")))'
+assert "DB-07 HIGH: catalog-level SELECT via all-data-readers and schema-level via analysts are indirect paths" \
+  '.findings | any(.check_id == "DB-07" and .severity == "HIGH" and (.evidence | test("CATALOG analytics:SELECT via group all-data-readers")) and (.evidence | test("SCHEMA app:SELECT via group analysts")))'
+assert "DB-10 CRITICAL: WRITE FILES via a group; READ VOLUME direct on a volume and cascading from the catalog grant" \
+  '.findings | any(.check_id == "DB-10" and .severity == "CRITICAL" and (.evidence | test("raw_exports:WRITE FILES \\(via group analysts\\)")) and (.evidence | test("VOLUME analytics.app.uploads:READ VOLUME")) and (.evidence | test("CATALOG analytics:READ VOLUME \\(via group all-data-readers; cascades")))'
+assert "DB-07 includes the MANAGE path" '.findings | any(.check_id == "DB-07" and (.evidence | test("SCHEMA app:MANAGE via group analysts")))'
+# casefold: a mixed-case --role still matches lowercase INFORMATION_SCHEMA grantees
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect databricks --recorded "$DBX" --role AI-Agent@Example.Invalid --principal-confirmed --emit-json "$TMP/out-case.json"
+if jq -e '.findings | any(.check_id == "DB-01")' "$TMP/out-case.json" >/dev/null; then echo "OK: grantee matching is case-insensitive"; else echo "FAIL: mixed-case role produced a clean result"; fail=1; fi
+# invisible view definitions -> DB-04 becomes UNKNOWN, never "no masked layer"
+DBXV="$TMP/dbx-views"; mkdir -p "$DBXV"; cp "$DBX"/*.csv "$DBXV"/; printf 'catalog,table_schema,table_name,table_type,definition_visible,has_masking_signal\nanalytics,curated,customers_v,VIEW,false,false\n' > "$DBXV/masked_views.csv"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect databricks --recorded "$DBXV" --role ai-agent@example.invalid --principal-confirmed --emit-json "$TMP/out-views.json"
+if jq -e '([.findings[] | select(.check_id == "DB-04")] | length == 0) and (.unknowns | any(.check_id == "DB-06" and (.reason | test("DB-04 not assessed")) and (.reason | test("curated.customers_v"))))' "$TMP/out-views.json" >/dev/null; then echo "OK: invisible view definition -> DB-04 UNKNOWN"; else echo "FAIL: invisible view definition treated as unmasked"; fail=1; fi
+assert "the INFORMATION_SCHEMA own-grants precondition is stated as a DB-06 unknown, always" \
+  '.unknowns | any(.check_id == "DB-06" and (.reason | test("only its own grants")))'
+assert "plan_inputs present with principal_kind user, groups, raw tables, planner_supported false" \
+  '(.plan_inputs.principal_kind == "user") and (.plan_inputs.groups == ["all-data-readers","analysts"]) and (.plan_inputs.raw_tables | length == 2) and (.plan_inputs.planner_supported == false)'
+assert "every databricks finding carries citations and a fingerprint; no value-like strings" \
+  '([.findings[] | (.citations | length > 0) and (.fingerprint | length > 0)] | all) and ([tostring | test("password|secret=")] == [false])'
+# a service-principal identity that is in no group and holds only view SELECT -> no DB-ID-01, no DB-07
+DBXSP="$TMP/dbx-sp"; mkdir -p "$DBXSP"; cp "$DBX"/*.csv "$DBXSP"/; printf 'name,directGroup\n' > "$DBXSP/identity.csv"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect databricks --recorded "$DBXSP" \
+  --role 3f1c2b9e-7d4a-4c1e-9b2f-0a6d8e5f4c21 --principal-confirmed --emit-json "$TMP/out2.json"
+if jq -e '([.findings[] | select(.check_id == "DB-ID-01" or .check_id == "DB-01" or .check_id == "DB-07" or .check_id == "DB-10" or .check_id == "DB-03")] | length == 0) and (.plan_inputs.principal_kind == "service_principal") and (.findings | any(.check_id == "DB-02" and .severity == "LOW" and (.evidence | test("app.orders \\(direct; not exploitable yet: missing USE SCHEMA app\\)"))))' "$TMP/out2.json" >/dev/null; then echo "OK: a UUID principal in no group: service principal, no identity/write/indirect/external findings; its SELECT without USE SCHEMA is a LOW latent grant"; else echo "FAIL: service principal identity / latent grant"; fail=1; fi
+# missing and malformed recorded files fail closed
+DBXMISS="$TMP/dbx-missing"; mkdir -p "$DBXMISS"; cp "$DBX"/grants.csv "$DBXMISS"/; printf 'wrong,header\n' > "$DBXMISS/pii_columns.csv"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect databricks --recorded "$DBXMISS" --role ai-agent@example.invalid --principal-confirmed --emit-json "$TMP/out3.json"
+assert_file() { if jq -e "$2" "$3" >/dev/null; then echo "OK: $1"; else echo "FAIL: $1"; echo "     (expression: $2)"; fail=1; fi; }
+assert_file "databricks: missing files -> one DB-06 per missing query naming the capture command; malformed header -> DB-06; no DB-03/DB-08/DB-ID-01/DB-10 fabricated" \
+  '([.unknowns[] | select(.check_id == "DB-06" and (.reason | test("csv. missing")))] | length == 5) and (.unknowns | any(.reason | test("unexpected header"))) and (.unknowns | any(.action | test("dbsqlcli --table-format csv"))) and ([.findings[] | select(.check_id == "DB-03" or .check_id == "DB-08" or .check_id == "DB-ID-01" or .check_id == "DB-10" or .check_id == "DB-04" or .check_id == "DB-05")] | length == 0)' "$TMP/out3.json"
+if python3 skills/db-access-audit/scripts/eval_grants.py --dialect databricks --role x --principal-confirmed >/dev/null 2>&1; then echo "FAIL: --dialect databricks without --recorded accepted"; fail=1; else echo "OK: --dialect databricks requires --recorded"; fi
+if out="$(python3 skills/safe-db-access/scripts/plan.py --audit "$TMP/out.json" 2>&1 >/dev/null)"; then echo "FAIL: planner rendered for databricks"; fail=1; elif echo "$out" | grep -q "no reviewed templates exist for dialect 'databricks'"; then echo "OK: planner refuses databricks plainly (no templates yet)"; else echo "FAIL: planner refusal wording"; fail=1; fi
+
 step "db-access-audit snowflake pack: script-computed verdicts match expected_findings.md"
+# v0.7 carry-over from the v0.4 gate: the audit session's own CURRENT_ROLE() is compared to --role
 SFF="tests/fixtures/snowflake"
 SF_V04=(--identity "$SFF/identity.txt" --policies "$SFF/policy_references.txt" --audit-quality "$SFF/audit_quality.txt")
 python3 skills/db-access-audit/scripts/eval_grants.py --dialect snowflake \

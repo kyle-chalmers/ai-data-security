@@ -1,6 +1,6 @@
 # db-access-audit reference
 
-## Check map (both dialects)
+## Check map (all dialects)
 
 | Check | Question | Severity (confirmed principal) |
 |---|---|---|
@@ -85,6 +85,41 @@ Snowflake notes that matter:
 - Output shapes vary by edition and version — Snowflake support is validated against the
   recorded fixtures in `tests/fixtures/snowflake/`, not a live CI account. The report header
   must say "Snowflake support: fixture-validated".
+
+## Databricks Unity Catalog pack — invocation and interpretation (v0.7, fixture-validated)
+
+Recorded mode: `eval_grants.py --dialect databricks --recorded <dir>` reads one CSV per pack file
+(`grants`, `pii_columns`, `masked_views`, `policy_attachment`, `identity`, `external_paths`,
+`audit_logging`). Live capture goes through the Databricks SQL CLI (`pip install
+databricks-sql-cli`; `dbsqlcli --table-format csv -e "<sql>"`), authenticated by the user's own
+`~/.dbsqlcli/dbsqlclirc`, PAT, or OAuth; the skill never sees the token. Two placeholders,
+`${catalog}` and `${principal}`, are substituted after validation.
+
+Identity model the module applies (`scripts/dialects/databricks.py`): the principal's **shape**
+tells its kind (applicationId UUID = service principal, email = user, otherwise group; `account
+users` / `users` = everyone). Grants to any group returned by `SHOW GROUPS WITH USER` apply to the
+principal; catalog- and schema-level grants apply to every current and future child object and
+`INHERITED_FROM` names the ancestor. Every finding's evidence says how a grant reaches the
+principal: `(direct)`, `(via group X)`, `(inherited from catalog.schema)`, `(via 'account users')`.
+
+| File | Look for | Check |
+|---|---|---|
+| `grants.csv` | MODIFY / ALL PRIVILEGES / INSERT / UPDATE / DELETE at any level; table ownership | DB-01 |
+| | SELECT on MANAGED/EXTERNAL/STREAMING/FOREIGN tables, or SELECT at schema/catalog level | DB-02 |
+| `pii_columns.csv` × readable objects | PII-named columns on readable tables (schema/catalog SELECT makes every table readable) | DB-03 |
+| `masked_views.csv` + `policy_attachment.csv` | no view with a masking signal and no column mask | DB-04 |
+| `audit_logging.csv` | `system.access` absent → MEDIUM; present with no grants → admins-only MEDIUM/probable | DB-05 |
+| `identity.csv` | principal is a user or a group; nested group memberships; owned tables | DB-ID-01 |
+| `grants.csv` | any read/write path to PII objects that is not a direct table grant (group, inherited, everyone) | DB-07 |
+| `policy_attachment.csv` | readable PII column with no `column_mask` row; row filters noted; ABAC exempt principals not visible (said in evidence) | DB-08 |
+| `audit_logging.csv` | `system.query` absent → MEDIUM; statement_text redacted for non-admins; 365-day retention | DB-09 |
+| `external_paths.csv` | WRITE FILES / WRITE VOLUME / CREATE EXTERNAL * → CRITICAL; READ FILES / READ VOLUME / BROWSE → HIGH | DB-10 |
+
+Always-present DB-06: the INFORMATION_SCHEMA own-grants visibility precondition. The audit cannot
+tell a genuinely empty grant list from a partial one, so it says so every time.
+
+What the pack cannot see (stated, not guessed): ABAC policy exemptions, workspace-level admin
+roles, cluster-scoped credentials, and privileges in other catalogs.
 
 ## Remediation target state (the safe-db-access recipe; planner approved as a SPEC amendment 2026-09-11)
 

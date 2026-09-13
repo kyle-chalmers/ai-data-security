@@ -1,0 +1,6 @@
+grantee,principal_kind,privilege_rows
+account users,everyone,1
+ai-agent@example.invalid,user,3
+analysts,group,2
+all-data-readers,group,1
+3f1c2b9e-7d4a-4c1e-9b2f-0a6d8e5f4c21,service_principal,1

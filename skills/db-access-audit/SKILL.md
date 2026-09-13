@@ -1,6 +1,6 @@
 ---
-description: Read-only warehouse audit for AI access risk — the AI principal's effective identity (user type, secondary roles, inheritance, ownership), over-broad and indirect grants, unmasked PII columns and whether any masking control is attached, audit-trail blind spots, and paths outside the database (stages, server file roles). Postgres (live) and Snowflake (recorded/live) SQL packs. Human-gated; connects via your own pre-authenticated psql/snow; never stores credentials.
-argument-hint: "--dialect postgres|snowflake --connection <conninfo-or-name> --role <ai-role> [--user <ai-user>] [--confirm] [--recorded <dir>]"
+description: Read-only warehouse audit for AI access risk — the AI principal's effective identity (user type, secondary roles, group membership, inheritance, ownership), over-broad and indirect grants, unmasked PII columns and whether any masking control is attached, audit-trail blind spots, and paths outside the database (stages, external locations, server file roles). Postgres (live), Snowflake (recorded/live), Databricks Unity Catalog (recorded/live via dbsqlcli) packs. Human-gated; connects via your own pre-authenticated psql/snow/dbsqlcli; never stores credentials.
+argument-hint: "--dialect postgres|snowflake|databricks --connection <conninfo-or-name> --role <ai-role> [--user <ai-user>] [--catalog <catalog>] [--confirm] [--recorded <dir>]"
 allowed-tools: "Bash(psql *), Bash(snow *), Bash(python3 *), Bash(mktemp *), Read, Glob"
 ---
 
@@ -26,7 +26,7 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
 
 ## Steps
 
-1. **Parse arguments** from `$ARGUMENTS`: `--dialect` (postgres|snowflake), `--connection`
+1. **Parse arguments** from `$ARGUMENTS`: `--dialect` (postgres|snowflake|databricks), `--connection`
    (psql conninfo/URL or snow connection name), `--role` (the AI principal to analyze),
    optional `--user` (Snowflake: the USER the agent authenticates as, needed for DB-ID-01 and
    DB-09; if omitted those checks are UNKNOWN), optional `--confirm`, optional `--recorded <dir>`. If a `.ai-data-security.yml` org profile
@@ -72,6 +72,19 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
    - The Postgres pack has ten files (`identity`, `policy_attachment`, `external_paths`,
      `audit_quality` since v0.4; `columns` since v0.6, which feeds the planner and produces no
      finding); all run under the same read-only PGOPTIONS.
+   - **databricks** (v0.7) — `--role` is the AI principal exactly as Unity Catalog names it: a
+     service principal's applicationId (UUID), a user's email, or a group name; `--catalog` is the
+     catalog to audit. Validate them (`--catalog` against `^[A-Za-z0-9_-]+$`, `--role` against
+     `^[A-Za-z0-9_.@+-]+$`; refuse anything else — they are substituted into SQL), derive
+     `principal_kind` (`GROUP` when the principal is neither an email nor a UUID, else `USER`),
+     substitute all three into each pack file, and capture CSV with the user's pre-authenticated
+     Databricks SQL CLI, passing the SQL as text (never via a pipe into `$(cat)`):
+     `dbsqlcli --table-format csv -e "$(sed -e "s/\${catalog}/<catalog>/g" -e "s/\${principal}/<principal>/g" -e "s/\${principal_kind}/<USER|GROUP>/g" sql/databricks/<file>.sql)" > <tmp>/<file>.csv`.
+     Gate preconditions to state: INFORMATION_SCHEMA shows a viewer only its own grants unless it
+     owns the securable or is a metastore admin, and `SHOW GROUPS WITH USER` needs administrator
+     privileges, so the capture must run as the catalog owner or a metastore admin; otherwise
+     grants are partial and the report says so. There is no
+     session-level read-only switch; the CI lint on `sql/databricks/` is the guarantee.
 
    Any query failure → that section is `DB-06` UNKNOWN (fail-closed, never a pass), keep going
    with the rest.
@@ -88,6 +101,10 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
      --columns <tmp>/columns.csv \
      --role <role> [--principal-confirmed] --ignore-dir <dir> --emit-json <tmp>/eval.json
    ```
+   **databricks**: `python3 .../eval_grants.py --dialect databricks --recorded <tmp> --role <principal> [--principal-confirmed] --ignore-dir <dir> --emit-json <tmp>/eval.json`
+   (one `<file>.csv` per pack file; a missing or malformed file is a DB-06 UNKNOWN naming the
+   capture command). The planner has no Databricks templates yet and says so.
+
    The four v0.4 inputs are optional: leave one out (or point at a file whose query failed) and
    the script reports that check as DB-06 UNKNOWN with the statement to capture. Never fabricate
    an input.

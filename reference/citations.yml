@@ -167,6 +167,48 @@
       "published": "2026-07-28",
       "accessed": "2026-09-11",
       "status": "current"
+    },
+    "databricks-uc-privileges": {
+      "display": "Databricks docs: Unity Catalog privileges and securable objects (catalog/schema grants apply to current and future child objects)",
+      "url": "https://docs.databricks.com/aws/en/data-governance/unity-catalog/manage-privileges/privileges",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "databricks-info-schema-privileges": {
+      "display": "Databricks docs: INFORMATION_SCHEMA.TABLE_PRIVILEGES (GRANTEE, PRIVILEGE_TYPE, INHERITED_FROM; a viewer sees only its own grants unless owner/metastore admin)",
+      "url": "https://docs.databricks.com/aws/en/sql/language-manual/information-schema/table_privileges",
+      "published": "2026-09-11",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "databricks-info-schema-column-masks": {
+      "display": "Databricks docs: INFORMATION_SCHEMA.COLUMN_MASKS and ROW_FILTERS (attached masks/filters per table and column)",
+      "url": "https://docs.databricks.com/aws/en/sql/language-manual/information-schema/column_masks",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "databricks-system-tables": {
+      "display": "Databricks docs: System tables (system.access.audit, system.query.history; admins have access by default, others need USE CATALOG/USE SCHEMA/SELECT on system; 365-day retention)",
+      "url": "https://docs.databricks.com/aws/en/admin/system-tables/",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "databricks-sql-principal": {
+      "display": "Databricks docs: Principal (SQL) — users by email, service principals by applicationId, groups by name",
+      "url": "https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-principal",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "databricks-show-groups": {
+      "display": "Databricks docs: SHOW GROUPS [WITH USER | WITH GROUP] (directGroup true = direct, false = nested; administrator required)",
+      "url": "https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-show-groups",
+      "published": "2026-09-11",
+      "accessed": "2026-09-13",
+      "status": "current"
     }
   }
 }
