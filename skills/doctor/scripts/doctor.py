@@ -35,6 +35,7 @@ TOOLS = [
     ("bq", ["bq", "version"], "live BigQuery audit", ["db-access-audit (bigquery)"], False),
     ("sqlcmd", ["sqlcmd", "-?"], "live Fabric Warehouse audit", ["db-access-audit (fabric)"], False),
     ("aws", ["aws", "--version"], "Lake Formation captures", ["db-access-audit (lakeformation)"], False),
+    ("duckdb", ["duckdb", "--version"], "DuckDB posture captures", ["db-access-audit (duckdb)"], False),
     ("gcloud", ["gcloud", "--version"], "BigQuery IAM / logging captures", ["db-access-audit (bigquery)"], False),
     ("docker", ["docker", "--version"], "test suite only (Postgres golden fixtures)", [], True),
     ("claude", ["claude", "--version"], "plugin runtime / plugin validate", [], True),
@@ -114,6 +115,7 @@ def evaluators_compile():
         "skills/db-access-audit/scripts/dialects/bigquery.py",
         "skills/db-access-audit/scripts/dialects/fabric.py",
         "skills/db-access-audit/scripts/dialects/lakeformation.py",
+        "skills/db-access-audit/scripts/dialects/duckdb.py",
         "skills/quick-check/scripts/quick_check.py",
         "scripts/to_sarif.py",
         "scripts/yaml_subset.py",
@@ -158,6 +160,8 @@ def capability_matrix(tools):
                  "psql present (Redshift speaks the PostgreSQL protocol)" if tools["psql"]["present"] else "psql missing → live Redshift audit unavailable; --recorded <dir> still works"))
     rows.append(("db-access-audit (lakeformation)", "ready" if tools["aws"]["present"] else "UNKNOWN",
                  "aws CLI present" if tools["aws"]["present"] else "aws CLI missing → live Lake Formation capture unavailable; --recorded <dir> still works"))
+    rows.append(("db-access-audit (duckdb)", "ready" if tools["duckdb"]["present"] else "UNKNOWN",
+                 "duckdb CLI present" if tools["duckdb"]["present"] else "duckdb CLI missing → live DuckDB posture capture unavailable; --recorded <dir> still works"))
     rows.append(("db-access-audit (fabric)", "ready" if tools["sqlcmd"]["present"] else "UNKNOWN",
                  "sqlcmd present (Entra auth with -G)" if tools["sqlcmd"]["present"] else "sqlcmd missing → live Fabric audit unavailable; --recorded <dir> still works"))
     rows.append(("db-access-audit (bigquery)", "ready" if (tools["bq"]["present"] and tools["gcloud"]["present"]) else "UNKNOWN",

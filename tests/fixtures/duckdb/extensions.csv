@@ -1,0 +1,4 @@
+extension_name,loaded,installed,install_mode,installed_from
+httpfs,true,true,REPOSITORY,core
+json,true,true,STATICALLY_LINKED,
+parquet,true,true,STATICALLY_LINKED,

@@ -1,0 +1,3 @@
+database_name,path,type,readonly,internal
+analytics,/Users/fixture/work/analytics/analytics.duckdb,duckdb,false,false
+md_share,md:acme_share,motherduck,false,false

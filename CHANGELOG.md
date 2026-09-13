@@ -3,6 +3,29 @@
 All notable changes to AI Data Security are documented here. This project follows
 [Semantic Versioning](https://semver.org). Dates are ISO-8601.
 
+## [0.12.0] — 2026-09-13
+
+DuckDB **posture** pack (coverage, sixth and last platform on the v1.x list). DuckDB has no roles and
+runs with the full privileges of the user running it, so the checks are about the file, the process
+guards, and the paths out, not GRANTs.
+
+### Added
+- **`db-access-audit --dialect duckdb`** (recorded via `--recorded <dir>`; six `duckdb -readonly
+  -csv -header` outputs plus a `stat` line with a `git_ignore` column). Verdicts: file mode bits and
+  (DB-01; the agent's own open mode is a standing DB-06 because the capture is `-readonly`), the OS
+  process as the principal (DB-ID-01), PII-named columns of base tables with underscore or space
+  boundaries and no column-level control (DB-02/03), masking-looking view SQL reported as UNKNOWN
+  never as a masked layer (DB-04), QueryLog / `log_query_path` state of the capture session (DB-05,
+  probable), `enable_external_access` / `lock_configuration` / extension auto-install, community and
+  persistent-secret settings plus `allowed_directories` / `allowed_paths` exceptions at permissive
+  values as seen by the capture session (DB-09, probable), remote or multiple attachments incl.
+  MotherDuck (DB-07, controls unverified), cloud extensions and persistent secrets grouped by storage
+  backend (DB-10, CRITICAL when both; MEDIUM residual when external access is off and locked), the
+  file inside a repo without an ignore rule (DB-08). Strict `file.csv` validation and `(none)`
+  sentinel rows (the CLI prints zero bytes for an empty result). Six DuckDB documentation pages
+  fetched live for the citation registry; Codex gate: 10 findings, 9 fixed, 1 refuted by reproduction.
+- `doctor` lists the DuckDB pack (`duckdb` CLI).
+
 ## [0.11.0] — 2026-09-13
 
 AWS Lake Formation pack (coverage, fifth platform), **partial by design**: recorded AWS CLI JSON,
@@ -463,6 +486,7 @@ First public release. Feature-complete v1: audit-only, read-only, every finding 
   hunt): permission-glob precision, uniform fail-closed suppression, a value-leak in classification
   evidence, crash-resistance on hostile inputs, and a regex ReDoS were all fixed and regression-locked.
 
+[0.12.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.12.0
 [0.11.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.11.0
 [0.10.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.10.0
 [0.9.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.9.0
