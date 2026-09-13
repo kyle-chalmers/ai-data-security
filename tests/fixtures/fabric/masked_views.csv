@@ -1,0 +1,3 @@
+kind,schema_name,object_name,detail,has_masking_signal
+view,app,customer_summary_v,,0
+rls_policy,app,orders,region_filter/enabled,

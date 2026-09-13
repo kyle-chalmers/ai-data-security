@@ -97,7 +97,8 @@ proof kit, not an applier.
 under a SPEC v2 that is not open; "v1.x" here meant "after the planner". Shipped: Databricks
 Unity Catalog pack in v0.7.0 (2026-09-13), plus the v0.4-gate carry-over (Snowflake audit-session
 `CURRENT_ROLE()` compared to `--role`); Redshift pack in v0.8.0 (2026-09-13); BigQuery pack (partial by
-design: explicit bindings + project IAM) in v0.9.0 (2026-09-13).*
+design: explicit bindings + project IAM) in v0.9.0 (2026-09-13); Fabric Warehouse pack (partial by design:
+SQL grants + optional SQL-audit status; workspace roles stated as UNKNOWN) in v0.10.0 (2026-09-13).*
 
 Databricks (system tables, ABAC exempt principals; S22, S60) → Redshift (SVV views with the
 `sys:secadmin` precondition; S21, Lane 3) → BigQuery as **partial** (explicit bindings only; S23)

@@ -1,0 +1,5 @@
+role_name,member_name,member_type
+"analysts","ai-agent-sp",EXTERNAL_USER
+"analysts","bi-readers",EXTERNAL_GROUPS
+"db_datareader","ai-agent-sp",EXTERNAL_USER
+"db_owner","data-eng@example.invalid",EXTERNAL_USER

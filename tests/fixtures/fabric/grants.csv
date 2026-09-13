@@ -1,0 +1,12 @@
+class_desc,schema_name,object_name,object_type,column_name,permission_name,state_desc,grantee_name,grantee_type
+DATABASE,,,,,CONNECT,GRANT,"ai-agent-sp",EXTERNAL_USER
+DATABASE,,,,,CONNECT,GRANT,"data-eng@example.invalid",EXTERNAL_USER
+OBJECT_OR_COLUMN,app,customers,USER_TABLE,ssn,SELECT,DENY,"ai-agent-sp",EXTERNAL_USER
+OBJECT_OR_COLUMN,app,customers,USER_TABLE,phone,UNMASK,GRANT,"analysts",DATABASE_ROLE
+OBJECT_OR_COLUMN,app,orders,USER_TABLE,,INSERT,GRANT,"ai-agent-sp",EXTERNAL_USER
+OBJECT_OR_COLUMN,hr,employees,USER_TABLE,,SELECT,DENY,"ai-agent-sp",EXTERNAL_USER
+OBJECT_OR_COLUMN,hr,employees,USER_TABLE,salary,SELECT,GRANT,"ai-agent-sp",EXTERNAL_USER
+OBJECT_OR_COLUMN,app,usp_customer_lookup,SQL_STORED_PROCEDURE,,EXECUTE,GRANT,"analysts",DATABASE_ROLE
+SCHEMA,app,,,,SELECT,GRANT,"analysts",DATABASE_ROLE
+SCHEMA,app,,,,ALTER,GRANT,"analysts",DATABASE_ROLE
+OBJECT_OR_COLUMN,app,customer_summary_v,VIEW,,SELECT,GRANT,"bi-readers",EXTERNAL_GROUPS

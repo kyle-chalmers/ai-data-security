@@ -252,6 +252,13 @@
       "description": "BigQuery pack + module (partial by design): OBJECT_PRIVILEGES per object + project IAM JSON, policy tags, SA keys, log bucket, row access policies; role->capability map; permanent UNKNOWNs for what IAM hides",
       "check": "run-fixture-checks 'bigquery pack' step",
       "passes": true
+    },
+    {
+      "id": "S15.1-fabric-pack",
+      "slice": "15",
+      "description": "Fabric Warehouse pack + module (partial by design): GRANT/DENY precedence, fixed roles, DDM per column, RLS, Query Insights, optional SQL-audit status; workspace roles as permanent UNKNOWN",
+      "check": "run-fixture-checks 'fabric pack' step",
+      "passes": true
     }
   ]
 }

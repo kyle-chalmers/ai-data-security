@@ -196,6 +196,46 @@ bindings excluded; deny policies (captured as a list; any present → not evalua
 access boundaries; basic roles; authorized views; taxonomy and data-policy IAM; an incomplete
 per-table capture (manifest vs rows). `plan_inputs.partial_by_design` is `true`.
 
+## Microsoft Fabric Warehouse pack — invocation and interpretation (v0.10, PARTIAL by design, fixture-validated)
+
+Recorded mode: `eval_grants.py --dialect fabric --recorded <dir>` reads `principals.csv`,
+`role_members.csv`, `grants.csv`, `ownership.csv`, `modules.csv`, `pii_columns.csv`,
+`masked_views.csv`, `audit_logging.csv` (each pack file emits its own header row so `sqlcmd -h -1`
+output is self-describing; free-text fields are CSV-quoted with `QUOTENAME(x, '"')`) and the optional
+JSON captures `audit_status.json` (Fabric REST `settings/sqlAudit`) and `endpoint_mode.json`
+(`{"itemType": "Warehouse"}` or a SQL analytics endpoint's `accessMode`). Live capture is `sqlcmd -G`
+over TDS 1433 with Entra authentication (see `sql/fabric/README.md`). `--role` is validated against
+`^[A-Za-z0-9._@ -]{1,128}$` before it is substituted anywhere.
+
+Identity model the module applies (`scripts/dialects/fabric.py`): the principal is a database
+principal (type E = Entra user or service principal, X = Entra group). Authority reaches it through
+explicit GRANT/DENY rows at database, schema, object, and column level; through database roles
+walked transitively (custom roles' grants; the FIXED roles `db_owner` / `db_datareader` /
+`db_datawriter` / `db_ddladmin` have no permission rows and are authority in themselves); through
+ownership of schemas and objects (CONTROL with no permission row); and through `public`. Effective
+SELECT follows the Database Engine rules: DENY at a covering scope beats GRANT, except that a
+column-level GRANT overrides an object-level DENY; CONTROL implies SELECT, ALTER does not. A dynamic
+data mask counts as protection only when the principal holds neither UNMASK on the column nor
+CONTROL / ownership at a covering scope. EXECUTE on a procedure or function is an opaque read path
+(DB-06). **What T-SQL cannot see and every verdict repeats:** workspace roles (Admin/Member/
+Contributor = CONTROL; Viewer = ReadData on every table), item permissions, and — for a lakehouse
+SQL analytics endpoint in OneLake user-identity mode — OneLake security roles, in which case table
+SQL grants are ignored and DB-01..DB-08 are UNKNOWN.
+
+| Input | Look for | Check |
+|---|---|---|
+| `grants.csv` + `role_members.csv` + `ownership.csv` | INSERT/UPDATE/DELETE/ALTER/CONTROL/TAKE OWNERSHIP grants (any scope, column UPDATE); `db_owner` / `db_datawriter` / `db_ddladmin`; owned schemas/objects | DB-01 |
+| | SELECT/CONTROL on tables, schemas, database; column-level SELECT; `db_datareader`; owned schemas/objects | DB-02 |
+| `pii_columns.csv` × effective SELECT | PII-named columns readable after DENY precedence; DDM function shown, marked NOT binding when UNMASK/CONTROL/ownership held | DB-03 |
+| `masked_views.csv` + `pii_columns.csv` | no view with a masking signal and no masked PII column; RLS policies noted | DB-04 |
+| `audit_status.json` + `audit_logging.csv` | DISABLED → MEDIUM; ENABLED without predicate → INFO with groups and retention; a predicate → DB-06; malformed/missing → DB-06 | DB-05 |
+| `principals.csv` + `role_members.csv` + `ownership.csv` | Entra user (UPN) or group as the agent; role memberships; fixed admin roles → CRITICAL; ownership | DB-ID-01 |
+| `grants.csv` + `role_members.csv` | role / public / schema / database paths to PII tables; role-held UNMASK; EXECUTE; fixed roles | DB-07 |
+| `pii_columns.csv` (is_masked) × UNMASK/CONTROL | readable PII column with no mask, or a mask the principal can bypass | DB-08 |
+| `audit_status.json` | no group/action covering SELECT; 30-day Query Insights; OneLake reads bypass SQL logs | DB-09 (probable) |
+| `modules.csv` + EXECUTE grants | opaque read paths | DB-06 |
+| — | OneLake / shortcuts / Direct Lake read the same Delta files outside SQL; COPY INTO / OPENROWSET reach storage | DB-10 (INFO, probable) |
+
 ## Remediation target state (the safe-db-access recipe; planner approved as a SPEC amendment 2026-09-11)
 
 1. Dedicated AI service principal, no interactive human sharing it. On Snowflake create it with
