@@ -1,0 +1,14 @@
+level,catalog,schema_name,object_name,object_type,owner,grantee,privilege_type,inherited_from
+CATALOG,analytics,,,CATALOG,metastore_admins,account users,USE CATALOG,NONE
+CATALOG,analytics,,,CATALOG,metastore_admins,all-data-readers,SELECT,NONE
+CATALOG,analytics,,,CATALOG,metastore_admins,all-data-readers,READ VOLUME,NONE
+SCHEMA,analytics,app,,SCHEMA,data_eng,analysts,USE SCHEMA,NONE
+SCHEMA,analytics,app,,SCHEMA,data_eng,analysts,SELECT,NONE
+SCHEMA,analytics,app,,SCHEMA,data_eng,analysts,MANAGE,NONE
+SCHEMA,analytics,app,,SCHEMA,data_eng,ai-agent@example.invalid,USE SCHEMA,NONE
+SCHEMA,analytics,staging,,SCHEMA,data_eng,ai-agent@example.invalid,USE SCHEMA,NONE
+TABLE,analytics,app,customers,MANAGED,data_eng,ai-agent@example.invalid,SELECT,NONE
+TABLE,analytics,app,customers,MANAGED,data_eng,ai-agent@example.invalid,MODIFY,NONE
+TABLE,analytics,app,customers,MANAGED,data_eng,analysts,SELECT,analytics.app
+TABLE,analytics,app,orders,MANAGED,data_eng,analysts,SELECT,analytics.app
+TABLE,analytics,app,orders,EXTERNAL,ai-agent@example.invalid,3f1c2b9e-7d4a-4c1e-9b2f-0a6d8e5f4c21,SELECT,NONE

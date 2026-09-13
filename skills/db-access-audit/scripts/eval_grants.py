@@ -118,6 +118,15 @@ def v04_unknown(name, statement, unknowns, extra=""):
     })
 
 
+def csv_header(path):
+    """Header row of a CSV file (so a zero-row capture with the wrong columns still fails closed)."""
+    try:
+        with open(path, newline="", encoding="utf-8-sig") as f:
+            return set(next(csv.reader(f), []))
+    except OSError:
+        return set()
+
+
 def read_csv(path):
     if not path or not os.path.exists(path):
         return None
@@ -410,6 +419,29 @@ def snowflake_findings(args, confidence, unknowns):
     return findings
 
 
+def _secondary_roles(raw):
+    """Active secondary roles from CURRENT_SECONDARY_ROLES(): documented as a JSON object with
+    `roles` (comma-separated string) and `value` (e.g. ALL). A list is accepted defensively.
+    Returns a sorted list (empty = none active), or None when the text is not that JSON."""
+    text = (raw or "").strip()
+    if not text:
+        return None
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    roles = data.get("roles")
+    if isinstance(roles, list):
+        names = [str(r) for r in roles]
+    elif isinstance(roles, str):
+        names = [r.strip() for r in roles.split(",")]
+    else:
+        names = []
+    return sorted({n.upper() for n in names if n})
+
+
 def _desc_user(rows):
     """DESCRIBE USER rows -> {PROPERTY: effective value}.
 
@@ -458,6 +490,32 @@ def snowflake_v04_findings(args, confidence, unknowns, readable, parsed):
                 problems.append(f"{len(user_roles)} roles granted to the user: {', '.join(user_roles)}")
             if default_role and not _unset(default_role) and default_role != role.upper():
                 problems.append(f"DEFAULT_ROLE is {default_role}, not the audited role {role}: sessions start with a different privilege set than the one audited")
+            # v0.7: the audit session's own identity (statement 3, optional for older captures)
+            session = ident[2][0] if len(ident) > 2 and ident[2] else None
+            if session is None:
+                unknowns.append({
+                    "check_id": "DB-06",
+                    "reason": "identity.sql statement 3 (CURRENT_USER/CURRENT_ROLE/CURRENT_SECONDARY_ROLES of the audit session) was not captured; the session's real role was not compared to --role.",
+                    "action": "Re-capture identity.sql with the current pack (three statements).",
+                })
+            else:
+                s_user = (session.get("session_user_name") or "").upper()
+                s_role = (session.get("session_role_name") or "").upper()
+                s_sec = session.get("session_secondary_roles") or ""
+                ai_user = (props.get("NAME") or "").upper()
+                if s_user and ai_user and s_user == ai_user:
+                    if s_role and s_role != role.upper():
+                        problems.append(f"the audit session ran AS the AI user with CURRENT_ROLE() = {s_role}, not the audited role {role}: the real privilege set is that role's")
+                    active = _secondary_roles(s_sec)
+                    if active is None:
+                        unknowns.append({"check_id": "DB-06",
+                                         "reason": "identity.sql statement 3: CURRENT_SECONDARY_ROLES() output could not be parsed as JSON; active secondary roles unknown.",
+                                         "action": "Re-capture identity.sql; the value should look like {\"roles\":\"A,B\",\"value\":\"ALL\"}."})
+                    elif active:
+                        problems.append(f"the audit session (as the AI user) had secondary roles active: {', '.join(active)}")
+                        unknowns.append({"check_id": "DB-06",
+                                         "reason": f"secondary roles {', '.join(active)} were active in the audited session but only role {role}'s grants were captured; the session's effective access is wider than every DB-01..DB-10 verdict above.",
+                                         "action": "Capture grants.sql for each active secondary role (SHOW GRANTS TO ROLE <r>) or set DEFAULT_SECONDARY_ROLES = () and re-audit."})
             if problems:
                 findings.append(finding(
                     "DB-ID-01", f"AI principal's user identity widens its reach beyond role '{role}'",
@@ -769,6 +827,42 @@ def _split_sf_name(name):
     return parts if len(parts) == 3 else [None, None, name]
 
 
+MODULE_DIALECTS = ["databricks"]
+
+
+def run_module_dialect(args, confidence, unknowns):
+    """v0.7: load skills/db-access-audit/scripts/dialects/<dialect>.py and feed it the recorded
+    CSVs. Missing or malformed file -> DB-06 UNKNOWN naming the capture; the module sees None."""
+    import importlib.util
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dialects", f"{args.dialect}.py")
+    spec = importlib.util.spec_from_file_location(f"dialect_{args.dialect}", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    tables = {}
+    for name, required in module.PACK.items():
+        path = os.path.join(args.recorded, f"{name}.csv")
+        rows = read_csv(path)
+        header = csv_header(path) if rows is not None else set()
+        if rows is None:
+            unknowns.append({"check_id": "DB-06",
+                             "reason": f"recorded output '{name}.csv' missing — that part of the audit did not run.",
+                             "action": f"Capture it: {module.CAPTURE.replace('<file>', name)}; do not treat this as a pass."})
+            tables[name] = None
+        elif not required.issubset(header):
+            missing = ", ".join(sorted(required - header))
+            unknowns.append({"check_id": "DB-06",
+                             "reason": f"recorded output '{name}.csv' has an unexpected header (missing: {missing}) — that check did not run.",
+                             "action": "Re-run the exact pack query; do not treat this as a pass."})
+            tables[name] = None
+        else:
+            tables[name] = rows
+    if getattr(module, "PRECONDITION", None):
+        unknowns.append({"check_id": "DB-06",
+                         "reason": f"precondition for a complete {args.dialect} capture: {module.PRECONDITION}",
+                         "action": "If the capture did not meet it, the grants are partial; re-capture before trusting a clean result."})
+    return module.evaluate(args.role, tables, confidence, unknowns, finding)
+
+
 def build_plan_inputs(args):
     """Structured, value-free facts for the safe-db-access planner (v0.6). Independent of the
     findings above: re-reads the same inputs so a missing input is `null` here, never guessed.
@@ -870,11 +964,13 @@ def build_plan_inputs(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dialect", choices=["postgres", "snowflake"], default="postgres")
-    parser.add_argument("--grants", required=True)
-    parser.add_argument("--pii", required=True)
-    parser.add_argument("--views", required=True)
-    parser.add_argument("--settings", required=True)
+    parser.add_argument("--dialect", choices=["postgres", "snowflake"] + MODULE_DIALECTS, default="postgres")
+    parser.add_argument("--grants")
+    parser.add_argument("--pii")
+    parser.add_argument("--views")
+    parser.add_argument("--settings")
+    parser.add_argument("--recorded", help="v0.7: directory of recorded <query>.csv outputs for a module dialect "
+                        f"({', '.join(MODULE_DIALECTS)}); one file per pack query")
     parser.add_argument("--identity", help="v0.4: identity.sql output (pg CSV or sf recorded text)")
     parser.add_argument("--policies", help="v0.4: policy_attachment.csv (pg) or policy_references.txt (sf)")
     parser.add_argument("--external", help="v0.4: external_paths.csv (pg; sf uses grants)")
@@ -893,10 +989,21 @@ def main():
     confidence = "confirmed" if args.principal_confirmed else "possible"
     citations, checks = load_registry()
     findings, unknowns = [], []
+    module_plan_inputs = None
 
-    if args.dialect == "snowflake":
+    if args.dialect in MODULE_DIALECTS:
+        if not args.recorded:
+            parser.error(f"--dialect {args.dialect} needs --recorded <dir> (one <query>.csv per pack file)")
+        findings, module_plan_inputs = run_module_dialect(args, confidence, unknowns)
+    elif args.dialect == "snowflake":
+        for flag in ("grants", "pii", "views", "settings"):
+            if not getattr(args, flag):
+                parser.error(f"--{flag} is required for --dialect snowflake")
         findings = snowflake_findings(args, confidence, unknowns)
     else:
+        for flag in ("grants", "pii", "views", "settings"):
+            if not getattr(args, flag):
+                parser.error(f"--{flag} is required for --dialect postgres")
         grants = read_csv(args.grants)
         pii = read_csv(args.pii)
         views = read_csv(args.views)
@@ -912,8 +1019,8 @@ def main():
                     "reason": f"query output '{name}' missing — that part of the audit did not run.",
                     "action": "Re-run the pack query and re-evaluate; do not treat this as a pass.",
                 })
-            elif data and not REQUIRED_COLUMNS[name].issubset(data[0].keys()):
-                missing = ", ".join(sorted(REQUIRED_COLUMNS[name] - set(data[0].keys())))
+            elif not REQUIRED_COLUMNS[name].issubset(csv_header(getattr(args, {"grants": "grants", "pii_columns": "pii", "masked_views": "views", "audit_logging": "settings"}[name]))):
+                missing = ", ".join(sorted(REQUIRED_COLUMNS[name] - csv_header(getattr(args, {"grants": "grants", "pii_columns": "pii", "masked_views": "views", "audit_logging": "settings"}[name]))))
                 unknowns.append({
                     "check_id": "DB-06",
                     "reason": f"query output '{name}' has an unexpected schema (missing column(s): "
@@ -1102,7 +1209,7 @@ def main():
         "findings": active,
         "unknowns": unknowns,
         "suppressed": suppressed,
-        "plan_inputs": build_plan_inputs(args),
+        "plan_inputs": module_plan_inputs if module_plan_inputs is not None else build_plan_inputs(args),
     }
     output = json.dumps(result, indent=2)
     if args.emit_json:

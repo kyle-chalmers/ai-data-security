@@ -1,0 +1,2 @@
+kind,catalog,table_schema,table_name,column_name,policy_name
+row_filter,analytics,app,orders,,analytics.governance.region_filter

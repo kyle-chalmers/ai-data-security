@@ -217,6 +217,27 @@
       "description": "eval_grants emits value-free plan_inputs; columns.sql added to the pg pack",
       "check": "expected/columns.csv golden; plan_inputs present in both fixture evals",
       "passes": true
+    },
+    {
+      "id": "S12.1-databricks-pack",
+      "slice": "12",
+      "description": "Databricks Unity Catalog pack + dialect module: DB-01..DB-10, DB-ID-01 from recorded CSVs; group/inherited/everyone paths named in evidence; own-grants precondition always stated",
+      "check": "run-fixture-checks 'databricks pack' step",
+      "passes": true
+    },
+    {
+      "id": "S12.2-module-dialects",
+      "slice": "12",
+      "description": "eval_grants loads scripts/dialects/<name>.py with --recorded; missing/malformed CSV -> DB-06 naming the capture",
+      "check": "databricks missing-files assertions",
+      "passes": true
+    },
+    {
+      "id": "S12.3-snowflake-session-role",
+      "slice": "12",
+      "description": "identity.sql statement 3; session role vs --role compared when the session is the AI user",
+      "check": "snowflake DB-ID-01 evidence mentions CURRENT_ROLE()",
+      "passes": true
     }
   ]
 }

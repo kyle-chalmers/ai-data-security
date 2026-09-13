@@ -3,6 +3,39 @@
 All notable changes to AI Data Security are documented here. This project follows
 [Semantic Versioning](https://semver.org). Dates are ISO-8601.
 
+## [0.7.0] — 2026-09-13
+
+Platform coverage begins (ROADMAP "v1.x", shipped as 0.7+): the Databricks Unity Catalog pack,
+plus the Snowflake carry-over from the v0.4 review gate. Invariants unchanged; Postgres and
+Snowflake verdicts unchanged on the same inputs.
+
+### Added
+- **`db-access-audit --dialect databricks`** (recorded CSVs via `--recorded <dir>`; live capture
+  through the user's own Databricks SQL CLI). Seven read-only pack files over
+  `system.information_schema` plus `SHOW GROUPS WITH USER`. The module models Unity Catalog's
+  identity semantics: principal kind by shape (applicationId UUID = service principal, email =
+  user, group), group grants apply to members, catalog/schema grants apply to every child object
+  (`INHERITED_FROM`), `account users` is everyone. Every check DB-01..DB-10 and DB-ID-01 fires with
+  evidence that says how a grant reaches the principal (`direct`, `via group`, `inherited from`).
+  DB-08 joins `COLUMN_MASKS` to readable PII columns and states that ABAC exemptions are not
+  visible. DB-10 covers external locations, storage credentials, and volumes. A permanent DB-06
+  states the INFORMATION_SCHEMA own-grants visibility precondition.
+- **Evaluator dialect modules** (`scripts/dialects/<platform>.py`, `PACK` + `evaluate`) so
+  further platforms add a module and a pack, not more branches in `eval_grants.py`.
+- **Snowflake `identity.sql` statement 3**: `CURRENT_USER()`, `CURRENT_ROLE()`,
+  `CURRENT_SECONDARY_ROLES()` of the audit session. When the audit runs as the AI user, a session
+  role that differs from `--role` becomes DB-ID-01 evidence; active secondary roles (parsed from the
+  documented JSON) are named and make every verdict provisional via a DB-06 (their grants were not
+  captured); an older two-statement capture is a DB-06 UNKNOWN for that comparison.
+- The Databricks module models Unity Catalog's effective-access rule (SELECT counts only with USE CATALOG + USE SCHEMA on the path; otherwise a LOW latent-grant finding), treats MANAGE and catalog/schema ownership as control-plane reach (DB-ID-01 CRITICAL, DB-01), cascades catalog/schema READ/WRITE VOLUME into DB-10, compares identifiers casefolded, and reports DB-04 as UNKNOWN when view definitions are not visible to the capturing user.
+- `doctor` detects `dbsqlcli`; six Databricks doc pages fetched live and added to the citation registry.
+- Evaluator CSV loaders now validate the header of a zero-row capture too (a wrong-column, empty file used to pass as "nothing found").
+
+### Changed
+- `eval_grants` `--grants/--pii/--views/--settings` are required per dialect rather than globally
+  (module dialects take `--recorded`). The planner refuses non-Postgres/Snowflake dialects with a
+  plain message (no templates yet) instead of "dialect unknown".
+
 ## [0.6.0] — 2026-09-12
 
 The safe-db-access **planner** (ROADMAP v0.6; approved SPEC amendment 2026-09-11): the first
@@ -321,6 +354,7 @@ First public release. Feature-complete v1: audit-only, read-only, every finding 
   hunt): permission-glob precision, uniform fail-closed suppression, a value-leak in classification
   evidence, crash-resistance on hostile inputs, and a regex ReDoS were all fixed and regression-locked.
 
+[0.7.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.7.0
 [0.6.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.6.0
 [0.5.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.5.0
 [0.4.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.4.0

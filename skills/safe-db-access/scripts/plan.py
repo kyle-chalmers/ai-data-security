@@ -365,7 +365,9 @@ def main():
         return 2
     dialect = args.dialect or pi.get("dialect") or (audit.get("tools") or {}).get("dialect")
     if dialect not in ("postgres", "snowflake"):
-        print("REFUSED: dialect unknown. Nothing rendered.", file=sys.stderr)
+        print(f"REFUSED: no reviewed templates exist for dialect {dialect!r} (postgres and snowflake only). "
+              "The audit findings still apply; the recipe for this platform is documented in the skill's reference.md "
+              "and must be written by hand for now. Nothing rendered.", file=sys.stderr)
         return 2
 
     params = {

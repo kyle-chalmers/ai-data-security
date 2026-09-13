@@ -21,3 +21,10 @@
 | 2026-05-01 09:01:00.000 -0700 | AI_AGENT | USER   | AI_AGENT     | SYSADMIN   |
 | 2025-11-02 12:00:00.000 -0700 | ANALYST  | USER   | AI_AGENT     | SYSADMIN   |
 +-------------------------------+----------+--------+--------------+------------+
+
+-- Statement 3: SELECT CURRENT_USER() ... (the DBA captured this pack while connected AS the AI user)
++-------------------+-------------------+---------------------------------------------+
+| SESSION_USER_NAME | SESSION_ROLE_NAME | SESSION_SECONDARY_ROLES                     |
+|-------------------+-------------------+---------------------------------------------|
+| AI_AGENT          | ANALYST           | {"roles":"AI_AGENT,ANALYST","value":"ALL"}  |
++-------------------+-------------------+---------------------------------------------+

@@ -221,11 +221,13 @@
       "citations": [
         "owasp-llm06",
         "atlas-aml-t0053",
-        "owasp-asi03"
+        "owasp-asi03",
+        "databricks-uc-privileges"
       ],
       "fixtures": [
         "postgres-fixture",
-        "snowflake-recorded"
+        "snowflake-recorded",
+        "databricks-recorded"
       ]
     },
     "DB-02": {
@@ -234,11 +236,13 @@
       "citations": [
         "owasp-llm06",
         "nist-sp800-122",
-        "owasp-asi03"
+        "owasp-asi03",
+        "databricks-uc-privileges"
       ],
       "fixtures": [
         "postgres-fixture",
-        "snowflake-recorded"
+        "snowflake-recorded",
+        "databricks-recorded"
       ]
     },
     "DB-03": {
@@ -251,18 +255,21 @@
       ],
       "fixtures": [
         "postgres-fixture",
-        "snowflake-recorded"
+        "snowflake-recorded",
+        "databricks-recorded"
       ]
     },
     "DB-04": {
       "skill": "db-access-audit",
       "title": "No masked/governed view layer detected",
       "citations": [
-        "nist-sp800-122"
+        "nist-sp800-122",
+        "databricks-info-schema-column-masks"
       ],
       "fixtures": [
         "postgres-fixture",
-        "snowflake-recorded"
+        "snowflake-recorded",
+        "databricks-recorded"
       ]
     },
     "DB-05": {
@@ -270,11 +277,13 @@
       "title": "No audit trail of the AI principal's queries",
       "citations": [
         "nist-ai-600-1",
-        "owasp-agent-cheat-sheet"
+        "owasp-agent-cheat-sheet",
+        "databricks-system-tables"
       ],
       "fixtures": [
         "postgres-fixture",
-        "snowflake-recorded"
+        "snowflake-recorded",
+        "databricks-recorded"
       ]
     },
     "DB-06": {
@@ -284,7 +293,8 @@
         "nist-sp800-122"
       ],
       "fixtures": [
-        "postgres-fixture"
+        "postgres-fixture",
+        "databricks-recorded"
       ]
     },
     "DB-ID-01": {
@@ -293,11 +303,14 @@
       "citations": [
         "owasp-asi03",
         "snowflake-agent-identity",
-        "snowflake-access-control"
+        "snowflake-access-control",
+        "databricks-sql-principal",
+        "databricks-show-groups"
       ],
       "fixtures": [
         "postgres-fixture",
-        "snowflake-recorded"
+        "snowflake-recorded",
+        "databricks-recorded"
       ]
     },
     "DB-07": {
@@ -306,11 +319,15 @@
       "citations": [
         "owasp-asi03",
         "nist-sp800-122",
-        "snowflake-access-control"
+        "snowflake-access-control",
+        "databricks-info-schema-privileges",
+        "databricks-uc-privileges",
+        "databricks-show-groups"
       ],
       "fixtures": [
         "postgres-fixture",
-        "snowflake-recorded"
+        "snowflake-recorded",
+        "databricks-recorded"
       ]
     },
     "DB-08": {
@@ -319,11 +336,13 @@
       "citations": [
         "nist-sp800-122",
         "nist-sp800-188",
-        "atlas-aml-t0057"
+        "atlas-aml-t0057",
+        "databricks-info-schema-column-masks"
       ],
       "fixtures": [
         "postgres-fixture",
-        "snowflake-recorded"
+        "snowflake-recorded",
+        "databricks-recorded"
       ]
     },
     "DB-09": {
@@ -331,11 +350,13 @@
       "title": "Audit trail of the AI principal has known blind spots (unreadable, unconfigured, or cache-skipped)",
       "citations": [
         "owasp-agent-cheat-sheet",
-        "nist-ai-600-1"
+        "nist-ai-600-1",
+        "databricks-system-tables"
       ],
       "fixtures": [
         "postgres-fixture",
-        "snowflake-recorded"
+        "snowflake-recorded",
+        "databricks-recorded"
       ]
     },
     "DB-10": {
@@ -344,11 +365,13 @@
       "citations": [
         "owasp-asi02",
         "atlas-aml-t0053",
-        "postgres-predefined-roles"
+        "postgres-predefined-roles",
+        "databricks-uc-privileges"
       ],
       "fixtures": [
         "postgres-fixture",
-        "snowflake-recorded"
+        "snowflake-recorded",
+        "databricks-recorded"
       ]
     },
     "DBT-01": {

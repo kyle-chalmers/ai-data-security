@@ -1,0 +1,4 @@
+kind,name,grantee,privilege_type,inherited_from
+EXTERNAL_LOCATION,raw_exports,analysts,WRITE FILES,NONE
+EXTERNAL_LOCATION,raw_exports,analysts,READ FILES,NONE
+VOLUME,analytics.app.uploads,ai-agent@example.invalid,READ VOLUME,NONE

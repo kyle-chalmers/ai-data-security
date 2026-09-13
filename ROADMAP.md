@@ -93,6 +93,11 @@ proof kit, not an applier.
 
 ## v1.x — Platform coverage (**coverage**), in auditability order
 
+*Numbering note (2026-09-13): coverage ships as 0.7, 0.8, … because v1.0 is reserved for IMPLEMENT
+under a SPEC v2 that is not open; "v1.x" here meant "after the planner". Shipped: Databricks
+Unity Catalog pack in v0.7.0 (2026-09-13), plus the v0.4-gate carry-over (Snowflake audit-session
+`CURRENT_ROLE()` compared to `--role`).*
+
 Databricks (system tables, ABAC exempt principals; S22, S60) → Redshift (SVV views with the
 `sys:secadmin` precondition; S21, Lane 3) → BigQuery as **partial** (explicit bindings only; S23)
 → Fabric via recorded API output (mode check first; S28, S29) → Lake Formation via recorded JSON
