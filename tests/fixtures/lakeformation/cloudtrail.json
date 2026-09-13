@@ -1,0 +1,16 @@
+{
+  "trailList": [
+    {
+      "Name": "acme-org-trail",
+      "S3BucketName": "acme-cloudtrail-logs",
+      "IncludeGlobalServiceEvents": true,
+      "IsMultiRegionTrail": true,
+      "HomeRegion": "us-east-1",
+      "TrailARN": "arn:aws:cloudtrail:us-east-1:111122223333:trail/acme-org-trail",
+      "LogFileValidationEnabled": true,
+      "HasCustomEventSelectors": false,
+      "HasInsightSelectors": false,
+      "IsOrganizationTrail": false
+    }
+  ]
+}

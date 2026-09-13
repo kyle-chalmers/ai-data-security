@@ -1,0 +1,8 @@
+{"DataLakeSettings": {
+  "DataLakeAdmins": [{"DataLakePrincipalIdentifier": "arn:aws:iam::111122223333:role/lake-admin"}],
+  "ReadOnlyAdmins": [],
+  "CreateDatabaseDefaultPermissions": [{"Principal": {"DataLakePrincipalIdentifier": "IAM_ALLOWED_PRINCIPALS"}, "Permissions": ["ALL"]}],
+  "CreateTableDefaultPermissions": [{"Principal": {"DataLakePrincipalIdentifier": "IAM_ALLOWED_PRINCIPALS"}, "Permissions": ["ALL"]}],
+  "Parameters": {"CROSS_ACCOUNT_VERSION": "4"},
+  "TrustedResourceOwners": [], "AllowExternalDataFiltering": false, "AllowFullTableExternalDataAccess": false
+}}

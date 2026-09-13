@@ -1,0 +1,8 @@
+{"PrincipalResourcePermissions": [
+ {"Principal": {"DataLakePrincipalIdentifier": "IAM_ALLOWED_PRINCIPALS"},
+  "Resource": {"Table": {"CatalogId": "111122223333", "DatabaseName": "retail", "Name": "legacy_profiles"}},
+  "Permissions": ["ALL"], "PermissionsWithGrantOption": []},
+ {"Principal": {"DataLakePrincipalIdentifier": "arn:aws:iam::111122223333:role/etl"},
+  "Resource": {"Database": {"CatalogId": "111122223333", "Name": "retail"}},
+  "Permissions": ["ALL"], "PermissionsWithGrantOption": ["ALL"]}
+]}

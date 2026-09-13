@@ -1,0 +1,14 @@
+{"PrincipalResourcePermissions": [
+ {"Principal": {"DataLakePrincipalIdentifier": "arn:aws:iam::111122223333:role/ai-agent"},
+  "Resource": {"TableWithColumns": {"CatalogId": "111122223333", "DatabaseName": "retail", "Name": "customers", "ColumnWildcard": {"ExcludedColumnNames": ["ssn", "card_number"]}}},
+  "Permissions": ["SELECT"], "PermissionsWithGrantOption": []},
+ {"Principal": {"DataLakePrincipalIdentifier": "arn:aws:iam::111122223333:role/ai-agent"},
+  "Resource": {"Table": {"CatalogId": "111122223333", "DatabaseName": "retail", "Name": "orders"}},
+  "Permissions": ["SELECT", "INSERT", "DESCRIBE"], "PermissionsWithGrantOption": []},
+ {"Principal": {"DataLakePrincipalIdentifier": "arn:aws:iam::111122223333:role/ai-agent"},
+  "Resource": {"Database": {"CatalogId": "111122223333", "Name": "retail"}},
+  "Permissions": ["DESCRIBE"], "PermissionsWithGrantOption": []},
+ {"Principal": {"DataLakePrincipalIdentifier": "arn:aws:iam::111122223333:role/ai-agent"},
+  "Resource": {"DataLocation": {"CatalogId": "111122223333", "ResourceArn": "arn:aws:s3:::acme-lake/raw"}},
+  "Permissions": ["DATA_LOCATION_ACCESS"], "PermissionsWithGrantOption": []}
+]}

@@ -259,6 +259,13 @@
       "description": "Fabric Warehouse pack + module (partial by design): GRANT/DENY precedence, fixed roles, DDM per column, RLS, Query Insights, optional SQL-audit status; workspace roles as permanent UNKNOWN",
       "check": "run-fixture-checks 'fabric pack' step",
       "passes": true
+    },
+    {
+      "id": "S16.1-lakeformation-pack",
+      "slice": "16",
+      "description": "Lake Formation module (JSON-only): column inclusion/exclusion maths, IAMAllowedPrincipals/ALLIAMPrincipals, cells filters, settings defaults, IAM policy names, hybrid mode, DATA_LOCATION_ACCESS",
+      "check": "run-fixture-checks 'lakeformation pack' step",
+      "passes": true
     }
   ]
 }

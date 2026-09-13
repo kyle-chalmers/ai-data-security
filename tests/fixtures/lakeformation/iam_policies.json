@@ -1,0 +1,4 @@
+{"AttachedPolicies": [
+ {"PolicyName": "AmazonS3ReadOnlyAccess", "PolicyArn": "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"},
+ {"PolicyName": "acme-agent-glue-read", "PolicyArn": "arn:aws:iam::111122223333:policy/acme-agent-glue-read"}
+]}
