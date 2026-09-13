@@ -279,6 +279,30 @@ Permanent DB-06s: explicit-grants-only; AWS-managed policies judged by name, and
 group policies, permission boundaries, SCPs and bucket policies never expanded.
 `plan_inputs.partial_by_design` is `true`.
 
+## DuckDB posture pack — invocation and interpretation (v0.12, POSTURE, fixture-validated)
+
+DuckDB has no identities and no GRANT: it "executes SQL with the full privileges of the user running
+it". The pack (`sql/duckdb/*.sql`, `scripts/dialects/duckdb.py`) therefore answers posture questions
+mapped onto the DB-* ids, and opens with a DB-06 saying exactly that. Recorded mode reads six
+`duckdb -readonly -csv -header` outputs (`settings`, `extensions`, `databases`, `secrets`,
+`pii_columns`, `masked_views`) plus `file.csv` (stat + `git_ignore`).
+
+| Input | Look for | Check |
+|---|---|---|
+| `file.csv` | world-writable (CRITICAL) or world/group-readable (HIGH) mode bits; the agent's open mode is a standing DB-06 (the capture is `-readonly`) | DB-01 |
+| `file.csv` | owner uid/gid, mode, size, mtime: the "principal" is the OS process | DB-ID-01 |
+| `pii_columns.csv` | PII-named columns of base tables, underscore or space boundaries (no column-level control exists) | DB-03; DB-02 when any table has them |
+| `masked_views.csv` | no view with a masking-looking expression → DB-04 MEDIUM; a signal → DB-04 UNKNOWN naming the views, never a pass | DB-04 |
+| `settings.csv` | `enable_logging` + `enabled_log_types` (QueryLog) + `logging_storage` file, or legacy `log_query_path` → INFO; otherwise MEDIUM (per-process, capture-session view) | DB-05 (probable) |
+| `settings.csv` | `enable_external_access`, `lock_configuration`, autoinstall/autoload/community/unsigned extensions, `allow_persistent_secrets`, empty `disabled_filesystems`, `allowed_directories` / `allowed_paths` exceptions (capture-session view → probable) | DB-09 |
+| `databases.csv` | remote (`s3://`, `md:`, `https://`…) or multiple local attachments, writable | DB-07 |
+| `extensions.csv` + `secrets.csv` | cloud/network extensions installed or loaded; persistent secrets grouped by storage backend (`local_file` = unencrypted files under `secret_directory`) | DB-10 (CRITICAL when both; MEDIUM residual when external access is off and locked) |
+| `file.csv.git_ignore` | `not_ignored`: the file sits in a repo with no ignore rule | DB-08 |
+
+Permanent DB-06s: no identities; the agent's open mode; settings are the capture session's; MotherDuck controls
+unverified. `file.csv` must be exactly one stat row with an octal mode, else DB-06 and no file verdicts.
+`plan_inputs.partial_by_design` and `posture` are `true`; the planner refuses the dialect.
+
 ## Remediation target state (the safe-db-access recipe; planner approved as a SPEC amendment 2026-09-11)
 
 1. Dedicated AI service principal, no interactive human sharing it. On Snowflake create it with

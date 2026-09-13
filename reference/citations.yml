@@ -496,6 +496,48 @@
       "published": "live doc",
       "accessed": "2026-09-13",
       "status": "current"
+    },
+    "duckdb-securing": {
+      "display": "DuckDB docs: Securing DuckDB (runs with the full privileges of its user; enable_external_access=false; lock_configuration=true; disable autoinstall/autoload/community extensions; allowed_directories/allowed_paths; -safe CLI mode)",
+      "url": "https://duckdb.org/docs/current/operations_manual/securing_duckdb/overview.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "duckdb-secrets-manager": {
+      "display": "DuckDB docs: Secrets Manager (persistent secrets stored unencrypted under ~/.duckdb/stored_secrets by default; duckdb_secrets() redacts values)",
+      "url": "https://duckdb.org/docs/current/configuration/secrets_manager.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "duckdb-configuration": {
+      "display": "DuckDB docs: Configuration reference (enable_external_access default true; lock_configuration default false; autoinstall/autoload/community extensions default true; allow_persistent_secrets default true)",
+      "url": "https://duckdb.org/docs/current/configuration/overview.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "duckdb-metadata-functions": {
+      "display": "DuckDB docs: metadata table functions (duckdb_settings, duckdb_extensions, duckdb_databases, duckdb_views, duckdb_columns, duckdb_secrets columns)",
+      "url": "https://duckdb.org/docs/current/sql/meta/duckdb_table_functions.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "duckdb-cli-arguments": {
+      "display": "DuckDB docs: CLI arguments (-csv, -header, -readonly, -c, -init, -bail)",
+      "url": "https://duckdb.org/docs/current/clients/cli/arguments.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "duckdb-cli-safe-mode": {
+      "display": "DuckDB docs: CLI Safe Mode (-safe sets enable_external_access=false, disables .sh/.read/.output and getenv; cannot be turned off in the session)",
+      "url": "https://duckdb.org/docs/current/clients/cli/safe_mode.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
     }
   }
 }

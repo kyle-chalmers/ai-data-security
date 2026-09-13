@@ -760,6 +760,69 @@ python3 skills/db-access-audit/scripts/eval_grants.py --dialect lakeformation --
 if jq -e '([.findings[] | select(.check_id == "DB-07") | .evidence | test("hybrid")] | any | not) and (.plan_inputs.hybrid_iam_governed == [])' "$TMP/out-lfo.json" >/dev/null; then echo "OK: principal opted in at the database -> Lake Formation governs the hybrid location, no hybrid DB-07"; else echo "FAIL: opt-in handling"; fail=1; fi
 if out="$(python3 skills/safe-db-access/scripts/plan.py --audit "$TMP/out.json" 2>&1 >/dev/null)"; then echo "FAIL: planner rendered for lakeformation"; fail=1; else echo "OK: planner refuses lakeformation (no templates)"; fi
 
+step "db-access-audit duckdb posture pack (v0.12): recorded duckdb CLI CSV + stat -> posture verdicts"
+DK="tests/fixtures/duckdb"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect duckdb --recorded "$DK" --role local --principal-confirmed --ignore-dir "$DK" --emit-json "$TMP/out.json"
+assert "standing DB-06s: no identities or grants; the agent process's open mode is not observable" '(.unknowns | any(.reason | test("DuckDB has no identities or grants"))) and (.unknowns | any(.reason | test("open mode is not observable")))'
+assert "DB-01 HIGH: mode 644 world-readable (CRITICAL is reserved for world-writable); no claim about how the agent opens it" '.findings | any(.check_id == "DB-01" and .severity == "HIGH" and (.evidence | test("file mode 644: world-readable")) and (.evidence | test("opened it read-write") | not))'
+DKW="$TMP/dk-ww"; mkdir -p "$DKW"; cp "$DK"/*.csv "$DKW"/; sed -i.bak 's/,644,/,666,/' "$DKW/file.csv"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect duckdb --recorded "$DKW" --role local --principal-confirmed --emit-json "$TMP/out-dkw.json"
+if jq -e '.findings | any(.check_id == "DB-01" and .severity == "CRITICAL" and (.evidence | test("world-writable")))' "$TMP/out-dkw.json" >/dev/null; then echo "OK: mode 666 -> DB-01 CRITICAL world-writable"; else echo "FAIL: duckdb world-writable severity"; fail=1; fi
+
+assert "DB-ID-01 HIGH: the OS process is the principal (uid/gid/mode reported, no values)" '.findings | any(.check_id == "DB-ID-01" and .severity == "HIGH" and (.evidence | test("owner uid 501, gid 20, mode 644")) and (.evidence | test("no database identity")))'
+assert "DB-03 HIGH ssn/card_number/'member ssn' (space boundary), MEDIUM email/full_name; DB-02 HIGH two PII tables readable in full" \
+  '(.findings | any(.check_id == "DB-03" and .severity == "HIGH" and (.evidence | test("customers.card_number, analytics.main.customers.ssn, analytics.main.members.member ssn")))) and (.findings | any(.check_id == "DB-03" and .severity == "MEDIUM" and (.evidence | test("customers.email, analytics.main.customers.full_name")))) and (.findings | any(.check_id == "DB-02" and .severity == "HIGH" and (.evidence | test("2 table\\(s\\) with PII-named columns"))))'
+assert "DB-04 MEDIUM: one view, no masking-looking expression" '.findings | any(.check_id == "DB-04" and .severity == "MEDIUM" and (.evidence | test("1 view\\(s\\), none with a masking-looking expression")))'
+assert "DB-05 MEDIUM/probable: no query log in the capture session (enable_logging=0, storage memory, no QueryLog, log_query_path NULL)" '.findings | any(.check_id == "DB-05" and .severity == "MEDIUM" and .confidence == "probable" and (.evidence | test("enable_logging=true logging_storage=memory enabled_log_types=\\(none\\) log_query_path=NULL")))'
+assert "DB-09 HIGH/probable: external access on, lock_configuration off, autoinstall/autoload/community on (capture-session view)" \
+  '.findings | any(.check_id == "DB-09" and .severity == "HIGH" and .confidence == "probable" and (.evidence | test("enable_external_access is on")) and (.evidence | test("lock_configuration is off")) and (.evidence | test("allow_community_extensions is on")) and (.evidence | test("allow_persistent_secrets is on")) and (.evidence | test("disabled_filesystems is empty")) and (.evidence | test("capture session")))'
+assert "DB-07 HIGH: writable MotherDuck attachment, controls not verified" '.findings | any(.check_id == "DB-07" and .severity == "HIGH" and (.evidence | test("md_share \\(md:acme_share, writable\\)")) and (.evidence | test("MotherDuck \\(md:\\) access controls are not verified")))'
+assert "DB-10 CRITICAL: httpfs + persistent S3 secret (name and type only; local_file storage named as unencrypted files under secret_directory)" '.findings | any(.check_id == "DB-10" and .severity == "CRITICAL" and (.evidence | test("httpfs")) and (.evidence | test("1 persistent secret\\(s\\): s3_analytics \\(s3\\) in unencrypted files under secret_directory")))'
+assert "DB-08 HIGH: the .duckdb file sits in a repo without an ignore rule" '.findings | any(.check_id == "DB-08" and .severity == "HIGH" and (.evidence | test("without a .gitignore rule")))'
+assert "no finding carries a secret value or a row value" '[.findings[].evidence | test("AKIA|secret_key|password|@")] | any | not'
+# DB-05 INFO when the capture session has QueryLog to a file; masking-looking view -> DB-04 UNKNOWN, never a pass; non-local secret storage named by backend
+DKL="$TMP/dk-log"; mkdir -p "$DKL"; cp "$DK"/*.csv "$DKL"/
+sed -i.bak -e 's/^enable_logging,.*/enable_logging,true/' -e "s/^enabled_log_types,.*/enabled_log_types,QueryLog/" -e 's/^logging_storage,.*/logging_storage,file/' "$DKL/settings.csv"
+printf 'database_name,schema_name,view_name,has_masking_signal\nanalytics,main,customer_summary_v,true\n' > "$DKL/masked_views.csv"
+printf 'name,type,provider,persistent,storage,scope\npg_s3,s3,config,true,postgres_secret_storage,[]\n' > "$DKL/secrets.csv"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect duckdb --recorded "$DKL" --role local --principal-confirmed --emit-json "$TMP/out-dkl.json"
+if jq -e '(.findings | any(.check_id == "DB-05" and .severity == "INFO" and (.evidence | test("logging_storage=file")))) and ([.findings[] | select(.check_id == "DB-04")] | length == 0) and (.unknowns | any(.check_id == "DB-04" and (.reason | test("customer_summary_v")))) and (.findings | any(.check_id == "DB-10" and (.evidence | test("pg_s3 \\(s3\\) in storage backend .postgres_secret_storage.")) and (.evidence | test("secret_directory") | not)))' "$TMP/out-dkl.json" >/dev/null; then echo "OK: QueryLog to file -> DB-05 INFO; masking-looking view -> DB-04 UNKNOWN not a pass; non-local secret storage named by backend"; else echo "FAIL: duckdb logging/masking/storage handling"; fail=1; fi
+# egress locked in the capture session -> DB-10 downgraded to MEDIUM residual (probable), never silent
+DKE="$TMP/dk-egress"; mkdir -p "$DKE"; cp "$DK"/*.csv "$DKE"/
+sed -i.bak -e 's/^enable_external_access,.*/enable_external_access,false/' -e 's/^lock_configuration,.*/lock_configuration,true/' "$DKE/settings.csv"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect duckdb --recorded "$DKE" --role local --principal-confirmed --emit-json "$TMP/out-dke.json"
+if jq -e '.findings | any(.check_id == "DB-10" and .severity == "MEDIUM" and .confidence == "probable" and (.evidence | test("blocked while enable_external_access=false is locked")) and (.evidence | test("agent.s process must set and lock the same")))' "$TMP/out-dke.json" >/dev/null; then echo "OK: external access off + locked -> DB-10 MEDIUM residual (extensions installed, secrets at rest), not a pass"; else echo "FAIL: duckdb egress gating"; fail=1; fi
+# malformed file.csv (mode bogus) -> DB-06, no DB-01/ID-01/08
+DKF="$TMP/dk-badfile"; mkdir -p "$DKF"; cp "$DK"/*.csv "$DKF"/
+printf 'path,size,mode,uid,gid,mtime,git_ignore\n/Users/fixture/work/analytics/analytics.duckdb,52428800,bogus,501,20,1757600000,not_ignored\n' > "$DKF/file.csv"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect duckdb --recorded "$DKF" --role local --principal-confirmed --emit-json "$TMP/out-dkf.json"
+if jq -e '([.findings[] | select(.check_id == "DB-01" or .check_id == "DB-ID-01" or .check_id == "DB-08")] | length == 0) and (.unknowns | any(.reason | test("file.csv is not one well-formed stat row")))' "$TMP/out-dkf.json" >/dev/null; then echo "OK: mode=bogus -> DB-06; no DB-01/ID-01/08 fabricated"; else echo "FAIL: duckdb malformed stat"; fail=1; fi
+assert "plan_inputs: posture, cloud_extensions httpfs, persistent_secrets by name, partial_by_design, planner unsupported" \
+  '(.plan_inputs.posture == true) and (.plan_inputs.cloud_extensions == ["httpfs"]) and (.plan_inputs.persistent_secrets == ["s3_analytics"]) and (.plan_inputs.partial_by_design == true) and (.plan_inputs.planner_supported == false)'
+assert "every duckdb finding carries citations and a fingerprint" '[.findings[] | (.citations | length > 0) and (.fingerprint | length > 0)] | all'
+# hardened posture: mode 600, read-only, guards set + locked, no cloud extension, temporary secret only, ignored file -> no DB-01/07/08/09/10
+DKH="$TMP/dk-hard"; mkdir -p "$DKH"; cp "$DK"/*.csv "$DKH"/
+printf 'path,size,mode,uid,gid,mtime,git_ignore\n/Users/fixture/work/analytics/analytics.duckdb,52428800,600,501,20,1757600000,ignored\n' > "$DKH/file.csv"
+printf 'database_name,path,type,readonly,internal\nanalytics,/Users/fixture/work/analytics/analytics.duckdb,duckdb,true,false\n' > "$DKH/databases.csv"
+printf 'extension_name,loaded,installed,install_mode,installed_from\njson,true,true,STATICALLY_LINKED,\n' > "$DKH/extensions.csv"
+printf 'name,type,provider,persistent,storage,scope\ns3_tmp,s3,config,false,memory,[]\n' > "$DKH/secrets.csv"
+sed -e 's/^access_mode,.*/access_mode,read_only/' -e 's/^enable_external_access,.*/enable_external_access,false/' -e 's/^lock_configuration,.*/lock_configuration,true/' \
+    -e 's/^autoinstall_known_extensions,.*/autoinstall_known_extensions,false/' -e 's/^autoload_known_extensions,.*/autoload_known_extensions,false/' -e 's/^allow_community_extensions,.*/allow_community_extensions,false/' -e 's/^allow_persistent_secrets,.*/allow_persistent_secrets,false/' "$DK/settings.csv" > "$DKH/settings.csv"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect duckdb --recorded "$DKH" --role local --principal-confirmed --emit-json "$TMP/out-dkh.json"
+if jq -e '([.findings[] | select(.check_id == "DB-01" or .check_id == "DB-07" or .check_id == "DB-08" or .check_id == "DB-09" or .check_id == "DB-10")] | length == 0) and (.findings | any(.check_id == "DB-ID-01" and .severity == "INFO")) and (.findings | any(.check_id == "DB-03"))' "$TMP/out-dkh.json" >/dev/null; then echo "OK: hardened posture (600, read-only, guards locked, no cloud ext, temp secret, ignored) -> no DB-01/07/08/09/10; DB-ID-01 INFO; PII still reported"; else echo "FAIL: duckdb hardened posture"; fail=1; fi
+# sentinel rows: empty secrets / views / pii captures keep their header and yield no finding, not a DB-06
+DKS="$TMP/dk-sentinel"; mkdir -p "$DKS"; cp "$DKH"/*.csv "$DKS"/ 2>/dev/null || cp "$DK"/*.csv "$DKS"/
+printf 'name,type,provider,persistent,storage,scope\n(none),,,false,,\n' > "$DKS/secrets.csv"
+printf 'database_name,schema_name,view_name,has_masking_signal\n(none),,,false\n' > "$DKS/masked_views.csv"
+printf 'database_name,schema_name,table_name,column_name,data_type,tier_floor\n(none),,,,,\n' > "$DKS/pii_columns.csv"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect duckdb --recorded "$DKS" --role local --principal-confirmed --emit-json "$TMP/out-dks.json"
+if jq -e '([.findings[] | select(.check_id == "DB-02" or .check_id == "DB-03" or .check_id == "DB-04" or .check_id == "DB-10")] | length == 0) and ([.unknowns[] | select(.reason | test("secrets.csv|masked_views.csv|pii_columns.csv"))] | length == 0) and (.plan_inputs.pii_columns == [])' "$TMP/out-dks.json" >/dev/null; then echo "OK: (none) sentinel rows -> empty inputs, no DB-02/03/04/10, no DB-06"; else echo "FAIL: duckdb sentinel handling"; fail=1; fi
+# missing file.csv and malformed settings header -> DB-06s, no DB-01/ID-01/08/09 fabricated
+DKM="$TMP/dk-missing"; mkdir -p "$DKM"; cp "$DK"/*.csv "$DKM"/; rm "$DKM/file.csv"; printf 'setting,val\nenable_external_access,true\n' > "$DKM/settings.csv"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect duckdb --recorded "$DKM" --role local --principal-confirmed --emit-json "$TMP/out-dkm.json"
+if jq -e '([.findings[] | select(.check_id == "DB-01" or .check_id == "DB-ID-01" or .check_id == "DB-08" or .check_id == "DB-09")] | length == 0) and (.unknowns | any(.reason | test("file"))) and (.unknowns | any(.reason | test("settings")))' "$TMP/out-dkm.json" >/dev/null; then echo "OK: missing file.csv + malformed settings.csv -> DB-06s; no file/process verdicts fabricated"; else echo "FAIL: duckdb fail-closed"; fail=1; fi
+if out="$(python3 skills/safe-db-access/scripts/plan.py --audit "$TMP/out.json" 2>&1 >/dev/null)"; then echo "FAIL: planner rendered for duckdb"; fail=1; else echo "OK: planner refuses duckdb (posture pack, no templates)"; fi
+
 step "db-access-audit snowflake pack: script-computed verdicts match expected_findings.md"
 # v0.7 carry-over from the v0.4 gate: the audit session's own CURRENT_ROLE() is compared to --role
 SFF="tests/fixtures/snowflake"

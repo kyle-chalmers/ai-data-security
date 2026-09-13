@@ -1,6 +1,6 @@
 ---
-description: Read-only warehouse audit for AI access risk — the AI principal's effective identity (user type, secondary roles, group membership, inheritance, ownership), over-broad and indirect grants, unmasked PII columns and whether any masking control is attached, audit-trail blind spots, and paths outside the database (stages, external locations, server file roles). Postgres (live), Snowflake (recorded/live), Databricks Unity Catalog (recorded/live via dbsqlcli), Amazon Redshift (recorded/live via psql), Google BigQuery (recorded/live via bq + gcloud; partial by design), Microsoft Fabric Warehouse / SQL analytics endpoint (recorded/live via sqlcmd -G; partial by design), AWS Lake Formation (recorded JSON from the AWS CLI; partial by design) packs. Human-gated; connects via your own pre-authenticated psql/snow/dbsqlcli; never stores credentials.
-argument-hint: "--dialect postgres|snowflake|databricks|redshift|bigquery|fabric|lakeformation --connection <conninfo-or-name> --role <ai-role> [--user <ai-user>] [--catalog <catalog>] [--confirm] [--recorded <dir>]"
+description: Read-only warehouse audit for AI access risk — the AI principal's effective identity (user type, secondary roles, group membership, inheritance, ownership), over-broad and indirect grants, unmasked PII columns and whether any masking control is attached, audit-trail blind spots, and paths outside the database (stages, external locations, server file roles). Postgres (live), Snowflake (recorded/live), Databricks Unity Catalog (recorded/live via dbsqlcli), Amazon Redshift (recorded/live via psql), Google BigQuery (recorded/live via bq + gcloud; partial by design), Microsoft Fabric Warehouse / SQL analytics endpoint (recorded/live via sqlcmd -G; partial by design), AWS Lake Formation (recorded JSON from the AWS CLI; partial by design), DuckDB (a POSTURE pack: file, process guards, paths out; no grants exist) packs. Human-gated; connects via your own pre-authenticated psql/snow/dbsqlcli; never stores credentials.
+argument-hint: "--dialect postgres|snowflake|databricks|redshift|bigquery|fabric|lakeformation|duckdb --connection <conninfo-or-name> --role <ai-role> [--user <ai-user>] [--catalog <catalog>] [--confirm] [--recorded <dir>]"
 allowed-tools: "Bash(psql *), Bash(snow *), Bash(python3 *), Bash(mktemp *), Read, Glob"
 ---
 
@@ -26,7 +26,7 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
 
 ## Steps
 
-1. **Parse arguments** from `$ARGUMENTS`: `--dialect` (postgres|snowflake|databricks|redshift|bigquery|fabric|lakeformation), `--connection`
+1. **Parse arguments** from `$ARGUMENTS`: `--dialect` (postgres|snowflake|databricks|redshift|bigquery|fabric|lakeformation|duckdb), `--connection`
    (psql conninfo/URL or snow connection name), `--role` (the AI principal to analyze),
    optional `--user` (Snowflake: the USER the agent authenticates as, needed for DB-ID-01 and
    DB-09; if omitted those checks are UNKNOWN), optional `--confirm`, optional `--recorded <dir>`. If a `.ai-data-security.yml` org profile
@@ -158,7 +158,13 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
      principal's IAM policies read S3 directly is judged by AWS-managed policy NAME only (inline,
      customer and group policies, boundaries, SCPs, bucket policies → DB-06); Athena / Redshift
      Spectrum query text is not in CloudTrail.
-   **databricks / redshift / bigquery / fabric / lakeformation**: `python3 .../eval_grants.py --dialect <…> --recorded <tmp> --role <principal> [--principal-confirmed] --ignore-dir <dir> --emit-json <tmp>/eval.json`
+   - **duckdb** (v0.12, POSTURE pack, partial by design) — there are no roles: whoever opens the file
+     holds every privilege. `--role` is the OS user (or `local`). Capture with the user's own
+     `duckdb -readonly -csv -header <file> < sql/duckdb/<q>.sql` for the six queries, plus the
+     `stat` line with the `git_ignore` column as `sql/duckdb/README.md` shows. Gate preconditions to
+     state: settings reflect the CAPTURE session, not the agent's process (the agent must set the
+     guards itself, then `lock_configuration`); MotherDuck (`md:`) controls are not verified.
+   **databricks / redshift / bigquery / fabric / lakeformation / duckdb**: `python3 .../eval_grants.py --dialect <…> --recorded <tmp> --role <principal> [--principal-confirmed] --ignore-dir <dir> --emit-json <tmp>/eval.json`
    (one `<file>.csv` per pack file; a missing or malformed file is a DB-06 UNKNOWN naming the
    capture command). The planner has no Databricks templates yet and says so.
 

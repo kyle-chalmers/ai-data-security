@@ -1,0 +1,6 @@
+database_name,schema_name,table_name,column_name,data_type,tier_floor
+analytics,main,customers,card_number,VARCHAR,Restricted
+analytics,main,customers,email,VARCHAR,Confidential
+analytics,main,customers,full_name,VARCHAR,Confidential
+analytics,main,customers,ssn,VARCHAR,Restricted
+analytics,main,members,member ssn,VARCHAR,Restricted

@@ -1,0 +1,2 @@
+database_name,schema_name,view_name,has_masking_signal
+analytics,main,customer_summary_v,false

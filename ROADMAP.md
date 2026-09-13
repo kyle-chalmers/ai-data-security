@@ -99,7 +99,9 @@ Unity Catalog pack in v0.7.0 (2026-09-13), plus the v0.4-gate carry-over (Snowfl
 `CURRENT_ROLE()` compared to `--role`); Redshift pack in v0.8.0 (2026-09-13); BigQuery pack (partial by
 design: explicit bindings + project IAM) in v0.9.0 (2026-09-13); Fabric Warehouse pack (partial by design:
 SQL grants + optional SQL-audit status; workspace roles stated as UNKNOWN) in v0.10.0 (2026-09-13); Lake Formation
-pack (partial by design: recorded AWS CLI JSON; IAM policies by name) in v0.11.0 (2026-09-13).*
+pack (partial by design: recorded AWS CLI JSON; IAM policies by name) in v0.11.0 (2026-09-13); DuckDB posture pack
+(file / process / paths-out checks, no grants exist; MotherDuck UNKNOWN) in v0.12.0 (2026-09-13). The v1.x coverage
+list is complete; what remains open is SPEC v2 (IMPLEMENT + hooks), which needs Kyle's explicit approval.*
 
 Databricks (system tables, ABAC exempt principals; S22, S60) → Redshift (SVV views with the
 `sys:secadmin` precondition; S21, Lane 3) → BigQuery as **partial** (explicit bindings only; S23)
