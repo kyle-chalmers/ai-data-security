@@ -1,0 +1,5 @@
+tableId,Type,Labels,Time Partitioning,Clustered Fields
+customers,TABLE,,,
+orders,TABLE,,,
+events_ext,EXTERNAL,,,
+customer_summary_v,VIEW,,,
