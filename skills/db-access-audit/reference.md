@@ -121,6 +121,39 @@ tell a genuinely empty grant list from a partial one, so it says so every time.
 What the pack cannot see (stated, not guessed): ABAC policy exemptions, workspace-level admin
 roles, cluster-scoped credentials, and privileges in other catalogs.
 
+## Amazon Redshift pack — invocation and interpretation (v0.8, fixture-validated)
+
+Recorded mode: `eval_grants.py --dialect redshift --recorded <dir>` reads one CSV per pack file
+(`grants`, `schema_grants`, `database_grants`, `column_grants`, `ownership`, `pii_columns`,
+`masked_views`, `policy_attachment`, `identity`, `external_paths`, `iam_privileges`,
+`audit_logging`). Live capture is plain `psql --csv` against port 5439 with `-v ai_user='<db user>'`
+(see `sql/redshift/README.md`).
+
+Identity model the module applies (`scripts/dialects/redshift.py`): the principal is a database
+USER; privileges reach it directly, through roles (`svv_user_grants`, then `svv_role_grants` walked
+transitively), through groups (`pg_group`), and through PUBLIC. A relation privilege counts only
+when the identity also holds USAGE on the schema (otherwise a LOW "latent grant"). Scoped grants
+(`privilege_scope = TABLES` at schema or database level) cover every current and future table.
+Ownership is write authority with no grant row; column-level SELECT/UPDATE grants are read/write
+paths with no relation row. Object names compare lowercased unless
+`enable_case_sensitive_identifier` is true (recorded in `audit_logging.csv`); identity names compare
+as recorded. `identity.csv` and `audit_logging.csv` record the AUDITOR's standing: below superuser,
+grant-derived verdicts are declared partial (DB-06); below `sys:secadmin`, an empty policy result
+makes DB-08 and DB-04 UNKNOWN, never "no policies".
+
+| File | Look for | Check |
+|---|---|---|
+| `grants.csv` + `schema_grants.csv` + `database_grants.csv` + `column_grants.csv` + `ownership.csv` | INSERT/UPDATE/DELETE/DROP/TRUNCATE/ALTER/ALL on relations, column UPDATE, scoped writes (schema or database TABLES), relation ownership, or `usesuper` | DB-01 |
+| | SELECT on TABLE / EXTERNAL TABLE with schema USAGE; column-level SELECT; scoped SELECT on TABLES (schema or database) | DB-02 (latent without USAGE → LOW) |
+| `pii_columns.csv` × readable objects | PII-named columns on readable tables | DB-03 |
+| `masked_views.csv` + `policy_attachment.csv` | no view with a masking signal and no masking attachment | DB-04 |
+| `audit_logging.csv` | `enable_user_activity_logging` ≠ true (false by default) | DB-05 |
+| `identity.csv` | superuser (CRITICAL), CREATEDB, password auth (no `IAM:`/`IAMA:` prefix), transitive roles incl. `sys:*` admin roles (CRITICAL), groups | DB-ID-01 |
+| `grants.csv` + `schema_grants.csv` | paths to PII objects via role, group, PUBLIC, or scoped TABLES grants | DB-07 |
+| `policy_attachment.csv` | readable PII column not among the OUTPUT columns of a masking attachment for the agent's identities or PUBLIC (an attachment to another role does nothing for it); RLS noted | DB-08 (UNKNOWN when the auditor is not secadmin and the file is empty) |
+| `audit_logging.csv` | S3/CloudWatch export invisible from SQL; SYS_QUERY_HISTORY own-rows visibility; 4000-char truncation; result-cache reads | DB-09 (probable) |
+| `external_paths.csv` + `iam_privileges.csv` | USAGE on external schemas (Spectrum / Glue, Hive, federated, remote Redshift, Kinesis, MSK); UNLOAD / EXTERNAL FUNCTION / CREATE MODEL grants on IAM roles → CRITICAL, COPY → HIGH | DB-10 (bucket-level IAM/S3 authorization stays a DB-06) |
+
 ## Remediation target state (the safe-db-access recipe; planner approved as a SPEC amendment 2026-09-11)
 
 1. Dedicated AI service principal, no interactive human sharing it. On Snowflake create it with

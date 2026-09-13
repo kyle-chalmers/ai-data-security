@@ -1,0 +1,4 @@
+name,setting
+enable_user_activity_logging,false
+enable_case_sensitive_identifier,false
+auditor_is_superuser,true

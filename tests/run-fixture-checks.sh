@@ -518,6 +518,74 @@ assert_file "databricks: missing files -> one DB-06 per missing query naming the
 if python3 skills/db-access-audit/scripts/eval_grants.py --dialect databricks --role x --principal-confirmed >/dev/null 2>&1; then echo "FAIL: --dialect databricks without --recorded accepted"; fail=1; else echo "OK: --dialect databricks requires --recorded"; fi
 if out="$(python3 skills/safe-db-access/scripts/plan.py --audit "$TMP/out.json" 2>&1 >/dev/null)"; then echo "FAIL: planner rendered for databricks"; fail=1; elif echo "$out" | grep -q "no reviewed templates exist for dialect 'databricks'"; then echo "OK: planner refuses databricks plainly (no templates yet)"; else echo "FAIL: planner refusal wording"; fail=1; fi
 
+step "db-access-audit redshift pack (v0.8): recorded SVV CSVs -> module verdicts"
+RS="tests/fixtures/redshift"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect redshift --recorded "$RS" \
+  --role ai_agent --principal-confirmed --ignore-dir "$RS" --emit-json "$TMP/out.json"
+assert "DB-01 CRITICAL: direct INSERT/UPDATE on app.customers, and ownership of app.scratch_exports counts as write authority" \
+  '.findings | any(.check_id == "DB-01" and .severity == "CRITICAL" and (.evidence | test("app.customers:INSERT \\(direct\\)")) and (.evidence | test("app.customers:UPDATE")) and (.evidence | test("Owns 1 relation\\(s\\): app.scratch_exports")))'
+assert "DB-02 HIGH: direct SELECT, SELECT via role reporting (transitive), via group bi_users, via PUBLIC, and scoped TABLES via role analyst" \
+  '.findings | any(.check_id == "DB-02" and .severity == "HIGH" and (.evidence | test("app.customers \\(direct\\)")) and (.evidence | test("app.customers \\(via role reporting\\)")) and (.evidence | test("app.orders \\(via group bi_users\\)")) and (.evidence | test("app.orders \\(via PUBLIC\\)")) and (.evidence | test("Scoped SELECT on every current and future table in: schema app \\(via role analyst\\)")))'
+assert "DB-02: lake.events via role analyst is effective (analyst holds USAGE on lake); column-level SELECT on hr.employees(ssn) is a read path with no relation grant" \
+  '.findings | any(.check_id == "DB-02" and (.evidence | test("lake.events \\(via role analyst\\)")) and (.evidence | test("Column-level SELECT: hr.employees\\(salary\\) \\(direct\\), hr.employees\\(ssn\\) \\(direct\\)")))'
+assert "DB-03: Restricted HIGH includes the column-granted hr.employees.ssn; Confidential MEDIUM includes hr.employees.salary" \
+  '(.findings | any(.check_id == "DB-03" and .severity == "HIGH" and (.evidence | test("app.customers.ssn")) and (.evidence | test("hr.employees.ssn")))) and (.findings | any(.check_id == "DB-03" and .severity == "MEDIUM" and (.evidence | test("full_name")) and (.evidence | test("hr.employees.salary"))))'
+assert "DB-04 absent: a masked view exists (customer_masked_v)" '[.findings[] | select(.check_id == "DB-04")] | length == 0'
+assert "DB-05 MEDIUM: enable_user_activity_logging = false" \
+  '.findings | any(.check_id == "DB-05" and .severity == "MEDIUM" and (.evidence | test("enable_user_activity_logging = false")))'
+assert "DB-08 HIGH: the hr-only email mask does nothing for the agent, the PUBLIC full_name mask covers full_name (OUTPUT columns, JSON array form); ssn/card_number/email/hr.* unprotected; RLS noted" \
+  '.findings | any(.check_id == "DB-08" and .severity == "HIGH" and (.evidence | test("2 masking attachment")) and (.evidence | test("app.customers.email")) and (.evidence | test("app.customers.full_name") | not) and (.evidence | test("hr.employees.ssn")) and (.evidence | test("RLS is attached on app.orders")))'
+assert "DB-09 MEDIUM/probable: export invisible from SQL, own-rows visibility, truncation" \
+  '.findings | any(.check_id == "DB-09" and .confidence == "probable" and (.evidence | test("describe-logging-status")) and (.evidence | test("own rows")))'
+assert "DB-ID-01 HIGH: password auth (no IAM: prefix), 2 transitive roles (analyst, reporting), group bi_users, owns scratch_exports; not superuser" \
+  '.findings | any(.check_id == "DB-ID-01" and .severity == "HIGH" and (.evidence | test("database password")) and (.evidence | test("holds 2 role\\(s\\) transitively: analyst, reporting")) and (.evidence | test("member of 1 group\\(s\\): bi_users")) and (.evidence | test("owns 1 relation")) and (.evidence | test("SUPERUSER") | not))'
+assert "DB-07 HIGH: role reporting and the scoped TABLES grant reach the PII table; group/PUBLIC paths to the non-PII orders table are not counted" \
+  '.findings | any(.check_id == "DB-07" and .severity == "HIGH" and (.evidence | test("app.customers:SELECT via role reporting")) and (.evidence | test("schema app:SELECT on TABLES via role analyst")) and (.evidence | test("bi_users") | not))'
+assert "DB-10 CRITICAL: UNLOAD on the default IAM role via role analyst, COPY via PUBLIC, Spectrum schema lake usable; bucket-level IAM/S3 authorization stays a DB-06" \
+  '(.findings | any(.check_id == "DB-10" and .severity == "CRITICAL" and (.evidence | test("UNLOAD with default-aws-iam-role via role analyst")) and (.evidence | test("COPY with default-aws-iam-role via PUBLIC")) and (.evidence | test("lake \\(data_catalog\\):USAGE via role analyst")))) and (.unknowns | any(.check_id == "DB-06" and (.reason | test("IAM/S3 policy"))))'
+assert "precondition DB-06 always present; plan_inputs carries roles, groups, iam_auth false, auditor superuser (grants complete), owned relation" \
+  '(.unknowns | any(.reason | test("sys:secadmin"))) and (.plan_inputs.roles == ["analyst","reporting"]) and (.plan_inputs.groups == ["bi_users"]) and (.plan_inputs.iam_auth == false) and (.plan_inputs.auditor.secadmin == true) and (.plan_inputs.auditor.grants_partial == false) and (.plan_inputs.owned[0].table == "scratch_exports") and (.plan_inputs.planner_supported == false)'
+assert "superuser capture: no 'partial' DB-06" '[.unknowns[] | select(.reason | test("did not run as a superuser"))] | length == 0'
+assert "every redshift finding carries citations and a fingerprint" '[.findings[] | (.citations | length > 0) and (.fingerprint | length > 0)] | all'
+# non-secadmin capture with an empty policy file -> DB-08 UNKNOWN, not "no policies"
+RSNS="$TMP/rs-nonsec"; mkdir -p "$RSNS"; cp "$RS"/*.csv "$RSNS"/
+printf 'kind,table_schema,table_name,grantee,grantee_type,output_columns,input_columns,policy_name,detail\n' > "$RSNS/policy_attachment.csv"
+grep -v '^auditor,' "$RS/identity.csv" > "$RSNS/identity.csv"; printf 'auditor,user,reguser\nauditor,usesuper,false\n' >> "$RSNS/identity.csv"
+sed -i.bak 's/^auditor_is_superuser,true/auditor_is_superuser,false/' "$RSNS/audit_logging.csv" && rm -f "$RSNS/audit_logging.csv.bak"
+printf 'table_schema,table_name,has_masking_signal\n' > "$RSNS/masked_views.csv"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect redshift --recorded "$RSNS" --role ai_agent --principal-confirmed --emit-json "$TMP/out-ns.json"
+if jq -e '([.findings[] | select(.check_id == "DB-08" or .check_id == "DB-04")] | length == 0) and (.unknowns | any(.check_id == "DB-06" and (.reason | test("neither a superuser nor sys:secadmin")))) and (.unknowns | any(.check_id == "DB-06" and (.reason | test("DB-04 not assessed")))) and (.unknowns | any(.check_id == "DB-06" and (.reason | test("did not run as a superuser")))) and (.plan_inputs.auditor.grants_partial == true)' "$TMP/out-ns.json" >/dev/null; then echo "OK: non-superuser capture -> DB-08 and DB-04 UNKNOWN, grants declared partial"; else echo "FAIL: non-superuser capture not fail-closed"; fail=1; fi
+# non-superuser capture with NO grant rows for the agent -> not a clean result
+RSNG="$TMP/rs-nogranted"; mkdir -p "$RSNG"; cp "$RSNS"/*.csv "$RSNG"/
+for f in grants schema_grants database_grants column_grants; do head -1 "$RS/$f.csv" > "$RSNG/$f.csv"; done
+printf 'schema_name,relation_name,relation_type,owner\n' > "$RSNG/ownership.csv"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect redshift --recorded "$RSNG" --role ai_agent --principal-confirmed --emit-json "$TMP/out-ng.json"
+if jq -e '([.findings[] | select(.check_id == "DB-01" or .check_id == "DB-02" or .check_id == "DB-03")] | length == 0) and (.unknowns | any(.check_id == "DB-06" and (.reason | test("not a clean result"))))' "$TMP/out-ng.json" >/dev/null; then echo "OK: empty grants below superuser -> explicit 'not a clean result' DB-06"; else echo "FAIL: partial empty grants passed as clean"; fail=1; fi
+# case-sensitive identifiers: a mask on "c" must not cover "C"
+RSCS="$TMP/rs-case"; mkdir -p "$RSCS"; cp "$RS"/*.csv "$RSCS"/
+sed -i.bak 's/^enable_case_sensitive_identifier,false/enable_case_sensitive_identifier,true/' "$RSCS/audit_logging.csv" && rm -f "$RSCS/audit_logging.csv.bak"
+printf 'app,customers,Full_Name,character varying,Confidential\n' >> "$RSCS/pii_columns.csv"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect redshift --recorded "$RSCS" --role ai_agent --principal-confirmed --emit-json "$TMP/out-case.json"
+if jq -e '.findings | any(.check_id == "DB-08" and (.evidence | test("app.customers.Full_Name")) and (.evidence | test("app.customers.full_name") | not))' "$TMP/out-case.json" >/dev/null; then echo "OK: with case-sensitive identifiers the PUBLIC mask on full_name does not cover Full_Name"; else echo "FAIL: case-sensitive identifier handling"; fail=1; fi
+# database-scoped TABLES grant -> broad read path
+RSDB="$TMP/rs-dbscope"; mkdir -p "$RSDB"; cp "$RS"/*.csv "$RSDB"/
+printf 'dev,SELECT,TABLES,bi_users,group,f\n' >> "$RSDB/database_grants.csv"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect redshift --recorded "$RSDB" --role ai_agent --principal-confirmed --emit-json "$TMP/out-db.json"
+if jq -e '(.findings | any(.check_id == "DB-02" and (.evidence | test("database dev — every table in every schema \\(via group bi_users\\)")))) and (.findings | any(.check_id == "DB-07" and (.evidence | test("database dev:SELECT on TABLES via group bi_users"))))' "$TMP/out-db.json" >/dev/null; then echo "OK: database-scoped TABLES grant is a broad DB-02 and an indirect DB-07 path"; else echo "FAIL: database-scoped grant handling"; fail=1; fi
+# latent grant: SELECT without schema USAGE -> LOW, excluded from DB-03
+RSL="$TMP/rs-latent"; mkdir -p "$RSL"; cp "$RS"/*.csv "$RSL"/
+grep -v '^app,USAGE,SCHEMA,ai_agent' "$RS/schema_grants.csv" | grep -v '^app,SELECT,TABLES,analyst' > "$RSL/schema_grants.csv"
+grep -v ',reporting,role,' "$RS/grants.csv" | grep -v ',bi_users,group,' | grep -v ',public,public,' > "$RSL/grants.csv"
+head -1 "$RS/column_grants.csv" > "$RSL/column_grants.csv"; head -1 "$RS/ownership.csv" > "$RSL/ownership.csv"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect redshift --recorded "$RSL" --role ai_agent --principal-confirmed --emit-json "$TMP/out-latent.json"
+if jq -e '(.findings | any(.check_id == "DB-02" and (.evidence | test("app.customers \\(direct; not exploitable yet: no USAGE on schema app\\)")))) and ([.findings[] | select(.check_id == "DB-03")] | length == 0)' "$TMP/out-latent.json" >/dev/null; then echo "OK: SELECT without schema USAGE is reported as latent and is not PII exposure"; else echo "FAIL: latent grant handling"; fail=1; fi
+# IAM-auth superuser agent
+RSS="$TMP/rs-super"; mkdir -p "$RSS"; cp "$RS"/*.csv "$RSS"/
+sed -i.bak 's/^attr,usesuper,false/attr,usesuper,true/' "$RSS/identity.csv" && rm -f "$RSS/identity.csv.bak"
+python3 skills/db-access-audit/scripts/eval_grants.py --dialect redshift --recorded "$RSS" --role ai_agent --principal-confirmed --emit-json "$TMP/out-super.json"
+if jq -e '(.findings | any(.check_id == "DB-ID-01" and .severity == "CRITICAL" and (.evidence | test("SUPERUSER")))) and (.findings | any(.check_id == "DB-01" and (.evidence | test("SUPERUSER"))))' "$TMP/out-super.json" >/dev/null; then echo "OK: superuser agent -> DB-ID-01 CRITICAL and DB-01"; else echo "FAIL: superuser handling"; fail=1; fi
+if python3 skills/db-access-audit/scripts/eval_grants.py --dialect redshift --role x --principal-confirmed >/dev/null 2>&1; then echo "FAIL: --dialect redshift without --recorded accepted"; fail=1; else echo "OK: --dialect redshift requires --recorded"; fi
+
 step "db-access-audit snowflake pack: script-computed verdicts match expected_findings.md"
 # v0.7 carry-over from the v0.4 gate: the audit session's own CURRENT_ROLE() is compared to --role
 SFF="tests/fixtures/snowflake"

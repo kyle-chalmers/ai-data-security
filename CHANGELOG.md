@@ -3,6 +3,33 @@
 All notable changes to AI Data Security are documented here. This project follows
 [Semantic Versioning](https://semver.org). Dates are ISO-8601.
 
+## [0.8.0] — 2026-09-13
+
+Amazon Redshift pack (coverage, second platform). Invariants unchanged; other dialects' verdicts
+unchanged on the same inputs.
+
+### Added
+- **`db-access-audit --dialect redshift`** (recorded CSVs via `--recorded <dir>`; live capture is
+  plain `psql --csv` on port 5439). Twelve read-only pack files over the SVV views and the
+  PostgreSQL-derived catalog. The module models Redshift's identity semantics: a database user,
+  its roles walked transitively through `svv_role_grants`, its groups (`pg_group`), and PUBLIC;
+  schema USAGE required before a relation grant counts (otherwise a LOW latent grant); scoped
+  `TABLES` grants at schema *and database* level cover future tables; relation **ownership** is
+  write authority with no grant row; **column-level** SELECT/UPDATE grants (`svv_column_privileges`)
+  are read/write paths with no relation row; object names compare lowercased unless
+  `enable_case_sensitive_identifier` is true, identity names as recorded. DB-ID-01 flags superusers
+  (CRITICAL), password-authenticated agents (no `IAM:`/`IAMA:` prefix), transitive `sys:*` admin
+  roles (CRITICAL), group membership, and ownership. DB-08 joins the **output columns** of
+  `svv_attached_masking_policy` to readable PII columns *for the agent's identities or PUBLIC* (a
+  policy attached to another role does nothing) and, like DB-04, is UNKNOWN when the capture ran
+  below `sys:secadmin`, because those views return zero rows. Below superuser, every grant-derived
+  verdict is declared partial (`svv_relation_privileges` hides other identities' rows). DB-05 reads
+  `enable_user_activity_logging`; DB-09 states the SQL-invisible export setting and
+  SYS_QUERY_HISTORY's own-rows rule; DB-10 covers USAGE on external schemas plus UNLOAD / COPY /
+  EXTERNAL FUNCTION grants from `svv_iam_privileges` (UNLOAD → CRITICAL), with a narrow DB-06 for
+  bucket-level IAM/S3 authorization. Thirteen Redshift doc pages fetched live for the registry.
+- `doctor` lists the Redshift pack (psql).
+
 ## [0.7.0] — 2026-09-13
 
 Platform coverage begins (ROADMAP "v1.x", shipped as 0.7+): the Databricks Unity Catalog pack,
@@ -354,6 +381,7 @@ First public release. Feature-complete v1: audit-only, read-only, every finding 
   hunt): permission-glob precision, uniform fail-closed suppression, a value-leak in classification
   evidence, crash-resistance on hostile inputs, and a regex ReDoS were all fixed and regression-locked.
 
+[0.8.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.8.0
 [0.7.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.7.0
 [0.6.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.6.0
 [0.5.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.5.0

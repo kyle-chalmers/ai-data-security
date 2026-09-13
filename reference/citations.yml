@@ -209,6 +209,97 @@
       "published": "2026-09-11",
       "accessed": "2026-09-13",
       "status": "current"
+    },
+    "redshift-svv-relation-privileges": {
+      "display": "AWS Redshift docs: SVV_RELATION_PRIVILEGES (explicit relation grants to users, roles, groups, public; full visibility needs superuser or SYSLOG ACCESS UNRESTRICTED)",
+      "url": "https://docs.aws.amazon.com/redshift/latest/dg/r_SVV_RELATION_PRIVILEGES.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "redshift-svv-role-grants": {
+      "display": "AWS Redshift docs: SVV_ROLE_GRANTS / SVV_USER_GRANTS (role-to-role and user-to-role grants; ACCESS SYSTEM TABLE to see others)",
+      "url": "https://docs.aws.amazon.com/redshift/latest/dg/r_SVV_ROLE_GRANTS.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "redshift-svv-attached-masking-policy": {
+      "display": "AWS Redshift docs: SVV_ATTACHED_MASKING_POLICY (only superusers and sys:secadmin see rows; regular users see 0 rows)",
+      "url": "https://docs.aws.amazon.com/redshift/latest/dg/r_SVV_ATTACHED_MASKING_POLICY.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "redshift-system-roles": {
+      "display": "AWS Redshift docs: system-defined roles (sys:secadmin manages users, roles, RLS and DDM policies)",
+      "url": "https://docs.aws.amazon.com/redshift/latest/dg/r_roles-default.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "redshift-db-auditing": {
+      "display": "AWS Redshift docs: Database audit logging (not on by default; enable_user_activity_logging false by default; S3/CloudWatch export)",
+      "url": "https://docs.aws.amazon.com/redshift/latest/mgmt/db-auditing.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "redshift-sys-query-history": {
+      "display": "AWS Redshift docs: SYS_QUERY_HISTORY (regular users see only their own rows; query_text truncated; result_cache_hit)",
+      "url": "https://docs.aws.amazon.com/redshift/latest/dg/SYS_QUERY_HISTORY.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "redshift-get-cluster-credentials": {
+      "display": "AWS Redshift API: GetClusterCredentials (temporary IAM database credentials; user names prefixed IAM: or IAMA:)",
+      "url": "https://docs.aws.amazon.com/redshift/latest/APIReference/API_GetClusterCredentials.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "redshift-svv-external-schemas": {
+      "display": "AWS Redshift docs: SVV_EXTERNAL_SCHEMAS (external catalogs: Glue, Hive, federated, remote Redshift, Kinesis, MSK)",
+      "url": "https://docs.aws.amazon.com/redshift/latest/dg/r_SVV_EXTERNAL_SCHEMAS.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "redshift-svv-iam-privileges": {
+      "display": "AWS Redshift docs: SVV_IAM_PRIVILEGES (explicit COPY / UNLOAD / CREATE MODEL / EXTERNAL FUNCTION grants on IAM roles to users, roles, groups, public)",
+      "url": "https://docs.aws.amazon.com/redshift/latest/dg/r_SVV_IAM_PRIVILEGES.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "redshift-svv-column-privileges": {
+      "display": "AWS Redshift docs: SVV_COLUMN_PRIVILEGES (column-level SELECT / UPDATE grants; not in SVV_RELATION_PRIVILEGES)",
+      "url": "https://docs.aws.amazon.com/redshift/latest/dg/r_SVV_COLUMN_PRIVILEGES.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "redshift-svv-database-privileges": {
+      "display": "AWS Redshift docs: SVV_DATABASE_PRIVILEGES (database-level and scoped TABLES / SCHEMAS grants)",
+      "url": "https://docs.aws.amazon.com/redshift/latest/dg/r_SVV_DATABASE_PRIVILEGES.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "redshift-attach-masking-policy": {
+      "display": "AWS Redshift docs: ATTACH MASKING POLICY (policy applies to output_column_names; input columns optional; TO user | ROLE | PUBLIC; PRIORITY)",
+      "url": "https://docs.aws.amazon.com/redshift/latest/dg/r_ATTACH_MASKING_POLICY.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "redshift-case-sensitive-identifier": {
+      "display": "AWS Redshift docs: enable_case_sensitive_identifier (identifiers lowercased unless true; quoted usernames always keep case)",
+      "url": "https://docs.aws.amazon.com/redshift/latest/dg/r_enable_case_sensitive_identifier.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
     }
   }
 }

@@ -106,6 +106,7 @@ def evaluators_compile():
         "skills/dbt-governance-audit/scripts/dbt_audit.py",
         "skills/safe-db-access/scripts/plan.py",
         "skills/db-access-audit/scripts/dialects/databricks.py",
+        "skills/db-access-audit/scripts/dialects/redshift.py",
         "skills/quick-check/scripts/quick_check.py",
         "scripts/to_sarif.py",
         "scripts/yaml_subset.py",
@@ -146,6 +147,8 @@ def capability_matrix(tools):
     rows.append(("safe-db-access (planner)", "ready", "stdlib only; renders SQL text from a db-access-audit JSON, never connects"))
     rows.append(("db-access-audit (postgres)", "ready" if tools["psql"]["present"] else "UNKNOWN",
                  "psql present" if tools["psql"]["present"] else "psql missing → live Postgres audit unavailable; --recorded <dir> still works"))
+    rows.append(("db-access-audit (redshift)", "ready" if tools["psql"]["present"] else "UNKNOWN",
+                 "psql present (Redshift speaks the PostgreSQL protocol)" if tools["psql"]["present"] else "psql missing → live Redshift audit unavailable; --recorded <dir> still works"))
     rows.append(("db-access-audit (databricks)", "ready" if tools["dbsqlcli"]["present"] else "UNKNOWN",
                  "dbsqlcli present" if tools["dbsqlcli"]["present"] else "dbsqlcli missing → live Databricks audit unavailable; --recorded <dir> still works"))
     rows.append(("db-access-audit (snowflake)", "ready" if tools["snow"]["present"] else "UNKNOWN",

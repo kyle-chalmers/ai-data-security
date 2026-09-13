@@ -1,0 +1,4 @@
+kind,table_schema,table_name,grantee,grantee_type,output_columns,input_columns,policy_name,detail
+masking,app,customers,hr,role,"[""email""]","[""email""]",mask_email_hr,10
+masking,app,customers,public,public,"[""full_name""]","[""full_name"", ""country""]",mask_name_public,20
+rls,app,orders,analyst,role,,,region_policy,is_rls_on=true;is_pol_on=true

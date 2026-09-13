@@ -1,6 +1,6 @@
 ---
-description: Read-only warehouse audit for AI access risk — the AI principal's effective identity (user type, secondary roles, group membership, inheritance, ownership), over-broad and indirect grants, unmasked PII columns and whether any masking control is attached, audit-trail blind spots, and paths outside the database (stages, external locations, server file roles). Postgres (live), Snowflake (recorded/live), Databricks Unity Catalog (recorded/live via dbsqlcli) packs. Human-gated; connects via your own pre-authenticated psql/snow/dbsqlcli; never stores credentials.
-argument-hint: "--dialect postgres|snowflake|databricks --connection <conninfo-or-name> --role <ai-role> [--user <ai-user>] [--catalog <catalog>] [--confirm] [--recorded <dir>]"
+description: Read-only warehouse audit for AI access risk — the AI principal's effective identity (user type, secondary roles, group membership, inheritance, ownership), over-broad and indirect grants, unmasked PII columns and whether any masking control is attached, audit-trail blind spots, and paths outside the database (stages, external locations, server file roles). Postgres (live), Snowflake (recorded/live), Databricks Unity Catalog (recorded/live via dbsqlcli), Amazon Redshift (recorded/live via psql) packs. Human-gated; connects via your own pre-authenticated psql/snow/dbsqlcli; never stores credentials.
+argument-hint: "--dialect postgres|snowflake|databricks|redshift --connection <conninfo-or-name> --role <ai-role> [--user <ai-user>] [--catalog <catalog>] [--confirm] [--recorded <dir>]"
 allowed-tools: "Bash(psql *), Bash(snow *), Bash(python3 *), Bash(mktemp *), Read, Glob"
 ---
 
@@ -26,7 +26,7 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
 
 ## Steps
 
-1. **Parse arguments** from `$ARGUMENTS`: `--dialect` (postgres|snowflake|databricks), `--connection`
+1. **Parse arguments** from `$ARGUMENTS`: `--dialect` (postgres|snowflake|databricks|redshift), `--connection`
    (psql conninfo/URL or snow connection name), `--role` (the AI principal to analyze),
    optional `--user` (Snowflake: the USER the agent authenticates as, needed for DB-ID-01 and
    DB-09; if omitted those checks are UNKNOWN), optional `--confirm`, optional `--recorded <dir>`. If a `.ai-data-security.yml` org profile
@@ -101,7 +101,17 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
      --columns <tmp>/columns.csv \
      --role <role> [--principal-confirmed] --ignore-dir <dir> --emit-json <tmp>/eval.json
    ```
-   **databricks**: `python3 .../eval_grants.py --dialect databricks --recorded <tmp> --role <principal> [--principal-confirmed] --ignore-dir <dir> --emit-json <tmp>/eval.json`
+   - **redshift** (v0.8) — Redshift speaks the PostgreSQL protocol: run each file in
+     `sql/redshift/` through the user's own `psql` (port 5439) exactly like the Postgres pack but
+     with `-v ai_user='<the database user the agent connects as>'` (IAM-auth users are named
+     `IAM:<name>` / `IAMA:<name>`); `--role` is that user name. There is no `PGOPTIONS` read-only
+     switch on Redshift; the CI lint on `sql/redshift/` is the guarantee. Gate preconditions to
+     state: relation grants of OTHER identities are visible only to superusers or `SYSLOG ACCESS
+     UNRESTRICTED`; role/user grants and schema privileges need `ACCESS SYSTEM TABLE`; the masking
+     and RLS attachment views return ZERO rows to anyone but superusers and `sys:secadmin` — so the
+     capture should run as a superuser or a `sys:secadmin` + `sys:monitor` holder, and the report
+     says when it did not (identity.sql records the auditor's standing).
+   **databricks / redshift**: `python3 .../eval_grants.py --dialect <databricks|redshift> --recorded <tmp> --role <principal> [--principal-confirmed] --ignore-dir <dir> --emit-json <tmp>/eval.json`
    (one `<file>.csv` per pack file; a missing or malformed file is a DB-06 UNKNOWN naming the
    capture command). The planner has no Databricks templates yet and says so.
 

@@ -1,0 +1,9 @@
+namespace_name,relation_name,table_type,privilege_type,identity_name,identity_type,admin_option
+app,customers,TABLE,INSERT,ai_agent,user,f
+app,customers,TABLE,SELECT,ai_agent,user,f
+app,customers,TABLE,UPDATE,ai_agent,user,f
+app,customers,TABLE,SELECT,reporting,role,f
+app,orders,TABLE,SELECT,public,public,f
+app,orders,TABLE,SELECT,bi_users,group,f
+app,customer_masked_v,VIEW,SELECT,analyst,role,f
+lake,events,EXTERNAL TABLE,SELECT,analyst,role,f
