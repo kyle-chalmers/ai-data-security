@@ -1,0 +1,2 @@
+schema_name,module_name,module_type,definition_visible
+"app","usp_customer_lookup",SQL_STORED_PROCEDURE,1

@@ -827,7 +827,7 @@ def _split_sf_name(name):
     return parts if len(parts) == 3 else [None, None, name]
 
 
-MODULE_DIALECTS = ["databricks", "redshift", "bigquery"]
+MODULE_DIALECTS = ["databricks", "redshift", "bigquery", "fabric"]
 
 
 def run_module_dialect(args, confidence, unknowns):

@@ -1,0 +1,9 @@
+name,principal_id,type,type_desc,authentication_type_desc,is_fixed_role,owning_principal
+"dbo",1,S,SQL_USER,INSTANCE,0,
+"db_owner",16384,R,DATABASE_ROLE,NONE,1,dbo
+"db_datareader",16390,R,DATABASE_ROLE,NONE,1,dbo
+"db_datawriter",16391,R,DATABASE_ROLE,NONE,1,dbo
+"analysts",5,R,DATABASE_ROLE,NONE,0,dbo
+"ai-agent-sp",6,E,EXTERNAL_USER,EXTERNAL,0,
+"data-eng@example.invalid",7,E,EXTERNAL_USER,EXTERNAL,0,
+"bi-readers",8,X,EXTERNAL_GROUPS,EXTERNAL,0,

@@ -1,0 +1,1 @@
+{"state": "Enabled", "retentionDays": 90, "auditActionsAndGroups": ["DATABASE_OBJECT_PERMISSION_CHANGE_GROUP", "SCHEMA_OBJECT_ACCESS_GROUP"], "predicateExpression": ""}

@@ -1,0 +1,10 @@
+kind,schema_name,object_name,object_type,owner_name
+schema,"app",,,"dbo"
+schema,"hr",,,"dbo"
+schema,"scratch",,,"ai-agent-sp"
+object,"app","customers",USER_TABLE,"dbo"
+object,"app","orders",USER_TABLE,"dbo"
+object,"app","customer_summary_v",VIEW,"dbo"
+object,"app","usp_customer_lookup",SQL_STORED_PROCEDURE,"dbo"
+object,"hr","employees",USER_TABLE,"dbo"
+object,"scratch","exports",USER_TABLE,"ai-agent-sp"

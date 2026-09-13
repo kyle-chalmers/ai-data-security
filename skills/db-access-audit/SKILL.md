@@ -1,6 +1,6 @@
 ---
-description: Read-only warehouse audit for AI access risk — the AI principal's effective identity (user type, secondary roles, group membership, inheritance, ownership), over-broad and indirect grants, unmasked PII columns and whether any masking control is attached, audit-trail blind spots, and paths outside the database (stages, external locations, server file roles). Postgres (live), Snowflake (recorded/live), Databricks Unity Catalog (recorded/live via dbsqlcli), Amazon Redshift (recorded/live via psql), Google BigQuery (recorded/live via bq + gcloud; partial by design) packs. Human-gated; connects via your own pre-authenticated psql/snow/dbsqlcli; never stores credentials.
-argument-hint: "--dialect postgres|snowflake|databricks|redshift|bigquery --connection <conninfo-or-name> --role <ai-role> [--user <ai-user>] [--catalog <catalog>] [--confirm] [--recorded <dir>]"
+description: Read-only warehouse audit for AI access risk — the AI principal's effective identity (user type, secondary roles, group membership, inheritance, ownership), over-broad and indirect grants, unmasked PII columns and whether any masking control is attached, audit-trail blind spots, and paths outside the database (stages, external locations, server file roles). Postgres (live), Snowflake (recorded/live), Databricks Unity Catalog (recorded/live via dbsqlcli), Amazon Redshift (recorded/live via psql), Google BigQuery (recorded/live via bq + gcloud; partial by design), Microsoft Fabric Warehouse / SQL analytics endpoint (recorded/live via sqlcmd -G; partial by design) packs. Human-gated; connects via your own pre-authenticated psql/snow/dbsqlcli; never stores credentials.
+argument-hint: "--dialect postgres|snowflake|databricks|redshift|bigquery|fabric --connection <conninfo-or-name> --role <ai-role> [--user <ai-user>] [--catalog <catalog>] [--confirm] [--recorded <dir>]"
 allowed-tools: "Bash(psql *), Bash(snow *), Bash(python3 *), Bash(mktemp *), Read, Glob"
 ---
 
@@ -26,7 +26,7 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
 
 ## Steps
 
-1. **Parse arguments** from `$ARGUMENTS`: `--dialect` (postgres|snowflake|databricks|redshift|bigquery), `--connection`
+1. **Parse arguments** from `$ARGUMENTS`: `--dialect` (postgres|snowflake|databricks|redshift|bigquery|fabric), `--connection`
    (psql conninfo/URL or snow connection name), `--role` (the AI principal to analyze),
    optional `--user` (Snowflake: the USER the agent authenticates as, needed for DB-ID-01 and
    DB-09; if omitted those checks are UNKNOWN), optional `--confirm`, optional `--recorded <dir>`. If a `.ai-data-security.yml` org profile
@@ -129,7 +129,22 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
      membership, custom-role permissions, conditional bindings, authorized views, and Fine-Grained
      Reader / data-policy IAM are NOT captured and appear as UNKNOWNs; basic roles (Owner / Editor /
      Viewer) are identity breadth, not table access.
-   **databricks / redshift / bigquery**: `python3 .../eval_grants.py --dialect <databricks|redshift|bigquery> --recorded <tmp> --role <principal> [--principal-confirmed] --ignore-dir <dir> --emit-json <tmp>/eval.json`
+   - **fabric** (v0.10, PARTIAL by design) — `--role` is the database principal name as
+     `sys.database_principals` spells it (an Entra user's UPN, a service principal's display name,
+     or an Entra group name); validate `^[A-Za-z0-9._@ -]{1,128}$` (no quotes, semicolons, or `--`) and substitute
+     `${principal}` only where the pack documents it. Capture each `sql/fabric/*.sql` with the
+     user's own `sqlcmd -G` against the SQL connection string (port 1433, Entra only, no SQL
+     auth): `sqlcmd -S <endpoint> -d <warehouse> -G -i <file>.sql -s "," -W -h -1 -f 65001 -o <tmp>/<file>.csv`
+     (each file emits its own header row; eight files incl. `ownership` and `modules`), plus the
+     optional `audit_status.json` (Fabric REST `settings/sqlAudit`) and `endpoint_mode.json`
+     (`{"itemType": "Warehouse"}`, or a lakehouse SQL analytics endpoint's `accessMode`; in
+     user-identity mode SQL grants are ignored and every table-access verdict is UNKNOWN). Gate preconditions to state: SQL GRANT/DENY is HALF the
+     model — workspace Admin/Member/Contributor hold CONTROL (read and write everything, unmasked)
+     and Viewer holds ReadData on every table; item permissions (Read/ReadData/ReadAll) grant access
+     outside SQL; none of that is visible from T-SQL, so the report says so on every finding.
+     `sys.database_permissions` shows other principals only with VIEW DEFINITION / ALTER ANY USER:
+     capture as a workspace Admin or Member.
+   **databricks / redshift / bigquery / fabric**: `python3 .../eval_grants.py --dialect <databricks|redshift|bigquery|fabric> --recorded <tmp> --role <principal> [--principal-confirmed] --ignore-dir <dir> --emit-json <tmp>/eval.json`
    (one `<file>.csv` per pack file; a missing or malformed file is a DB-06 UNKNOWN naming the
    capture command). The planner has no Databricks templates yet and says so.
 

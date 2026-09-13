@@ -356,6 +356,76 @@
       "published": "live doc",
       "accessed": "2026-09-13",
       "status": "current"
+    },
+    "fabric-sql-granular-permissions": {
+      "display": "Microsoft Learn (Fabric): SQL granular permissions in Fabric Data Warehouse (GRANT/DENY, roles; sys.database_principals + sys.database_permissions show explicit grants only, not workspace-role or item access)",
+      "url": "https://learn.microsoft.com/en-us/fabric/data-warehouse/sql-granular-permissions",
+      "published": "2026-06-25",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "fabric-workspace-roles": {
+      "display": "Microsoft Learn (Fabric): Workspace roles in Fabric Data Warehouse (Admin/Member/Contributor = CONTROL; Viewer = CONNECT + ReadData on every warehouse)",
+      "url": "https://learn.microsoft.com/en-us/fabric/data-warehouse/workspace-roles",
+      "published": "2025-06-26",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "fabric-dynamic-data-masking": {
+      "display": "Microsoft Learn (Fabric): Dynamic data masking in Fabric Data Warehouse (masks bind users without UNMASK/CONTROL; Admin/Member/Contributor see unmasked; inference by range queries)",
+      "url": "https://learn.microsoft.com/en-us/fabric/data-warehouse/dynamic-data-masking",
+      "published": "2026-06-25",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "fabric-row-level-security": {
+      "display": "Microsoft Learn (Fabric): Row-level security in Fabric Data Warehouse (CREATE SECURITY POLICY; applies to dbo too; side channels)",
+      "url": "https://learn.microsoft.com/en-us/fabric/data-warehouse/row-level-security",
+      "published": "2024-08-01",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "fabric-query-insights": {
+      "display": "Microsoft Learn (Fabric): Query Insights (queryinsights.exec_requests_history; 30 days; full text for Admin/Member/Contributor)",
+      "url": "https://learn.microsoft.com/en-us/fabric/data-warehouse/query-insights",
+      "published": "2026-08-24",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "fabric-sql-audit-logs": {
+      "display": "Microsoft Learn (Fabric): Configure SQL audit logs in Fabric Data Warehouse (per-warehouse setting via portal/REST; .xel in OneLake; sys.fn_get_audit_file_v2; action groups; retention)",
+      "url": "https://learn.microsoft.com/en-us/fabric/data-warehouse/configure-sql-audit-logs",
+      "published": "2026-08-10",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "fabric-connectivity": {
+      "display": "Microsoft Learn (Fabric): Warehouse connectivity (TDS port 1433; Microsoft Entra users and service principals only; SQL authentication unsupported)",
+      "url": "https://learn.microsoft.com/en-us/fabric/data-warehouse/connectivity",
+      "published": "2026-09-09",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "fabric-security-overview": {
+      "display": "Microsoft Learn (Fabric): Secure your Fabric Data Warehouse (workspace roles, item permissions, granular SQL, user audit logs via Purview)",
+      "url": "https://learn.microsoft.com/en-us/fabric/data-warehouse/security",
+      "published": "2026-03-13",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "sql-sys-database-permissions": {
+      "display": "Microsoft Learn (SQL): sys.database_permissions (class 0/1/3, minor_id = column, state G/D/W; fixed-role permissions do not appear; applies to Warehouse in Microsoft Fabric)",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-database-permissions-transact-sql",
+      "published": "2026-05-26",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "sql-sys-database-principals": {
+      "display": "Microsoft Learn (SQL): sys.database_principals (type E = Entra user or service principal, X = Entra group, R = role; authentication_type_desc EXTERNAL)",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-database-principals-transact-sql",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
     }
   }
 }
