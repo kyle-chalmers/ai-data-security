@@ -213,6 +213,26 @@ for member, kind in [("serviceAccount:a@p.iam.gserviceaccount.com", "serviceacco
     if bq._kind(member) != kind:
         failures.append(f"bigquery _kind({member!r}) != {kind}")
 
+# v0.11: Lake Formation principal kinds and resource parsing.
+lfm = load("dialect_lakeformation", "skills/db-access-audit/scripts/dialects/lakeformation.py")
+for arn, kind in [("arn:aws:iam::111122223333:role/x", "role"), ("arn:aws:iam::111122223333:user/x", "user"), ("arn:aws:iam::111122223333:saml-provider/idp:user/a", "saml"),
+                  ("arn:aws:identitystore:::user/abc", "identity_center"), ("IAM_ALLOWED_PRINCIPALS", "iam_allowed_principals"), ("bogus", "unknown")]:
+    if lfm._kind(arn) != kind:
+        failures.append(f"lakeformation _kind({arn!r}) != {kind}")
+r = lfm._res({"TableWithColumns": {"DatabaseName": "d", "Name": "t", "ColumnWildcard": {"ExcludedColumnNames": ["ssn"]}}})
+if r[:5] != ("table", "d", "t", [], ["ssn"]):
+    failures.append(f"lakeformation _res TableWithColumns = {r!r}")
+if lfm._res({"Table": {"DatabaseName": "d", "TableWildcard": {}}})[0] != "all_tables":
+    failures.append("lakeformation _res TableWildcard")
+for r, kind in [({"LFTagPolicy": {"ResourceType": "TABLE", "Expression": []}}, "lf_tag_policy"), ({"LFTag": {"TagKey": "k", "TagValues": ["v"]}}, "lf_tag"),
+                ({"LFTagExpression": {"Name": "e"}}, "lf_tag_expression"), ({"Catalog": {}}, "catalog"), ({"Weird": {}}, "other")]:
+    if lfm._res(r)[0] != kind:
+        failures.append(f"lakeformation _res {list(r)[0]} != {kind}")
+if lfm._s3_prefix("arn:aws:s3:::acme-lake/legacy/") != "s3://acme-lake/legacy":
+    failures.append("lakeformation _s3_prefix")
+if not lfm._under("s3://acme-lake/legacy/profiles/", "s3://acme-lake/legacy") or lfm._under("s3://acme-lake/legacy_v2/x", "s3://acme-lake/legacy"):
+    failures.append("lakeformation _under prefix boundary")
+
 # Fail-closed expiry: unparseable AND blank expires= must both count as expired.
 # Blank expires= (fail-open) was an edge-hardening finding — locked here across all evaluators.
 permeval = load("permeval", "skills/ai-config-audit/scripts/permeval.py")

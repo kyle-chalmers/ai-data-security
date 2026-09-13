@@ -227,7 +227,8 @@
         "redshift-svv-column-privileges",
         "bigquery-iam-roles",
         "sql-sys-database-permissions",
-        "fabric-workspace-roles"
+        "fabric-workspace-roles",
+        "lakeformation-permissions-reference"
       ],
       "fixtures": [
         "postgres-fixture",
@@ -235,7 +236,8 @@
         "databricks-recorded",
         "redshift-recorded",
         "bigquery-recorded",
-        "fabric-recorded"
+        "fabric-recorded",
+        "lakeformation-recorded"
       ]
     },
     "DB-02": {
@@ -254,7 +256,10 @@
         "bigquery-bq-cli",
         "sql-sys-database-permissions",
         "fabric-workspace-roles",
-        "fabric-connectivity"
+        "fabric-connectivity",
+        "lakeformation-list-permissions",
+        "lakeformation-permissions-reference",
+        "lakeformation-tbac"
       ],
       "fixtures": [
         "postgres-fixture",
@@ -262,7 +267,8 @@
         "databricks-recorded",
         "redshift-recorded",
         "bigquery-recorded",
-        "fabric-recorded"
+        "fabric-recorded",
+        "lakeformation-recorded"
       ]
     },
     "DB-03": {
@@ -279,7 +285,8 @@
         "databricks-recorded",
         "redshift-recorded",
         "bigquery-recorded",
-        "fabric-recorded"
+        "fabric-recorded",
+        "lakeformation-recorded"
       ]
     },
     "DB-04": {
@@ -298,7 +305,8 @@
         "databricks-recorded",
         "redshift-recorded",
         "bigquery-recorded",
-        "fabric-recorded"
+        "fabric-recorded",
+        "lakeformation-recorded"
       ]
     },
     "DB-05": {
@@ -311,7 +319,9 @@
         "redshift-db-auditing",
         "bigquery-audit-logs",
         "fabric-sql-audit-logs",
-        "fabric-query-insights"
+        "fabric-query-insights",
+        "lakeformation-cloudtrail-getdataaccess",
+        "lakeformation-cloudtrail-logging"
       ],
       "fixtures": [
         "postgres-fixture",
@@ -319,21 +329,25 @@
         "databricks-recorded",
         "redshift-recorded",
         "bigquery-recorded",
-        "fabric-recorded"
+        "fabric-recorded",
+        "lakeformation-recorded"
       ]
     },
     "DB-06": {
       "skill": "db-access-audit",
       "title": "DB audit could not run or principal unconfirmed (UNKNOWN / confidence cap)",
       "citations": [
-        "nist-sp800-122"
+        "nist-sp800-122",
+        "lakeformation-cli-list-permissions",
+        "lakeformation-tbac"
       ],
       "fixtures": [
         "postgres-fixture",
         "databricks-recorded",
         "redshift-recorded",
         "bigquery-recorded",
-        "fabric-recorded"
+        "fabric-recorded",
+        "lakeformation-recorded"
       ]
     },
     "DB-ID-01": {
@@ -350,7 +364,8 @@
         "redshift-system-roles",
         "bigquery-iam-roles",
         "sql-sys-database-principals",
-        "fabric-workspace-roles"
+        "fabric-workspace-roles",
+        "lakeformation-permissions-reference"
       ],
       "fixtures": [
         "postgres-fixture",
@@ -358,7 +373,8 @@
         "databricks-recorded",
         "redshift-recorded",
         "bigquery-recorded",
-        "fabric-recorded"
+        "fabric-recorded",
+        "lakeformation-recorded"
       ]
     },
     "DB-07": {
@@ -376,7 +392,10 @@
         "bigquery-object-privileges",
         "bigquery-iam-roles",
         "sql-sys-database-permissions",
-        "fabric-sql-granular-permissions"
+        "fabric-sql-granular-permissions",
+        "lakeformation-permissions-reference",
+        "lakeformation-hybrid-access-mode",
+        "lakeformation-hybrid-prerequisites"
       ],
       "fixtures": [
         "postgres-fixture",
@@ -384,7 +403,8 @@
         "databricks-recorded",
         "redshift-recorded",
         "bigquery-recorded",
-        "fabric-recorded"
+        "fabric-recorded",
+        "lakeformation-recorded"
       ]
     },
     "DB-08": {
@@ -403,7 +423,10 @@
         "bigquery-data-masking",
         "bigquery-row-level-security",
         "fabric-dynamic-data-masking",
-        "fabric-row-level-security"
+        "fabric-row-level-security",
+        "lakeformation-data-cells-filter",
+        "lakeformation-list-permissions",
+        "lakeformation-data-filter-grant"
       ],
       "fixtures": [
         "postgres-fixture",
@@ -411,7 +434,8 @@
         "databricks-recorded",
         "redshift-recorded",
         "bigquery-recorded",
-        "fabric-recorded"
+        "fabric-recorded",
+        "lakeformation-recorded"
       ]
     },
     "DB-09": {
@@ -426,7 +450,9 @@
         "bigquery-information-schema-jobs",
         "bigquery-audit-logs",
         "fabric-query-insights",
-        "fabric-sql-audit-logs"
+        "fabric-sql-audit-logs",
+        "lakeformation-cloudtrail-getdataaccess",
+        "lakeformation-cloudtrail-logging"
       ],
       "fixtures": [
         "postgres-fixture",
@@ -434,7 +460,8 @@
         "databricks-recorded",
         "redshift-recorded",
         "bigquery-recorded",
-        "fabric-recorded"
+        "fabric-recorded",
+        "lakeformation-recorded"
       ]
     },
     "DB-10": {
@@ -448,7 +475,8 @@
         "redshift-svv-external-schemas",
         "redshift-svv-iam-privileges",
         "bigquery-iam-roles",
-        "fabric-security-overview"
+        "fabric-security-overview",
+        "lakeformation-permissions-reference"
       ],
       "fixtures": [
         "postgres-fixture",
@@ -456,7 +484,8 @@
         "databricks-recorded",
         "redshift-recorded",
         "bigquery-recorded",
-        "fabric-recorded"
+        "fabric-recorded",
+        "lakeformation-recorded"
       ]
     },
     "DBT-01": {

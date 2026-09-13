@@ -1,6 +1,6 @@
 ---
-description: Read-only warehouse audit for AI access risk — the AI principal's effective identity (user type, secondary roles, group membership, inheritance, ownership), over-broad and indirect grants, unmasked PII columns and whether any masking control is attached, audit-trail blind spots, and paths outside the database (stages, external locations, server file roles). Postgres (live), Snowflake (recorded/live), Databricks Unity Catalog (recorded/live via dbsqlcli), Amazon Redshift (recorded/live via psql), Google BigQuery (recorded/live via bq + gcloud; partial by design), Microsoft Fabric Warehouse / SQL analytics endpoint (recorded/live via sqlcmd -G; partial by design) packs. Human-gated; connects via your own pre-authenticated psql/snow/dbsqlcli; never stores credentials.
-argument-hint: "--dialect postgres|snowflake|databricks|redshift|bigquery|fabric --connection <conninfo-or-name> --role <ai-role> [--user <ai-user>] [--catalog <catalog>] [--confirm] [--recorded <dir>]"
+description: Read-only warehouse audit for AI access risk — the AI principal's effective identity (user type, secondary roles, group membership, inheritance, ownership), over-broad and indirect grants, unmasked PII columns and whether any masking control is attached, audit-trail blind spots, and paths outside the database (stages, external locations, server file roles). Postgres (live), Snowflake (recorded/live), Databricks Unity Catalog (recorded/live via dbsqlcli), Amazon Redshift (recorded/live via psql), Google BigQuery (recorded/live via bq + gcloud; partial by design), Microsoft Fabric Warehouse / SQL analytics endpoint (recorded/live via sqlcmd -G; partial by design), AWS Lake Formation (recorded JSON from the AWS CLI; partial by design) packs. Human-gated; connects via your own pre-authenticated psql/snow/dbsqlcli; never stores credentials.
+argument-hint: "--dialect postgres|snowflake|databricks|redshift|bigquery|fabric|lakeformation --connection <conninfo-or-name> --role <ai-role> [--user <ai-user>] [--catalog <catalog>] [--confirm] [--recorded <dir>]"
 allowed-tools: "Bash(psql *), Bash(snow *), Bash(python3 *), Bash(mktemp *), Read, Glob"
 ---
 
@@ -26,7 +26,7 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
 
 ## Steps
 
-1. **Parse arguments** from `$ARGUMENTS`: `--dialect` (postgres|snowflake|databricks|redshift|bigquery|fabric), `--connection`
+1. **Parse arguments** from `$ARGUMENTS`: `--dialect` (postgres|snowflake|databricks|redshift|bigquery|fabric|lakeformation), `--connection`
    (psql conninfo/URL or snow connection name), `--role` (the AI principal to analyze),
    optional `--user` (Snowflake: the USER the agent authenticates as, needed for DB-ID-01 and
    DB-09; if omitted those checks are UNKNOWN), optional `--confirm`, optional `--recorded <dir>`. If a `.ai-data-security.yml` org profile
@@ -144,7 +144,21 @@ reporting. This skill runs **inline** (not forked) because its human gate is a c
      outside SQL; none of that is visible from T-SQL, so the report says so on every finding.
      `sys.database_permissions` shows other principals only with VIEW DEFINITION / ALTER ANY USER:
      capture as a workspace Admin or Member.
-   **databricks / redshift / bigquery / fabric**: `python3 .../eval_grants.py --dialect <databricks|redshift|bigquery|fabric> --recorded <tmp> --role <principal> [--principal-confirmed] --ignore-dir <dir> --emit-json <tmp>/eval.json`
+   - **lakeformation** (v0.11, PARTIAL by design, no SQL) — `--role` is the IAM principal ARN
+     exactly as Lake Formation spells it (`arn:aws:iam::<acct>:role/<name>`, `:user/<name>`, a
+     SAML or Identity Center ARN); validate `^arn:aws:[a-z0-9-]+::?[0-9]*:[A-Za-z0-9:/_.@+=,-]+$`.
+     Capture the JSON files listed in `sql/lakeformation/README.md` with the user's own AWS CLI
+     (`list-permissions` for the principal AND for everyone, `get-data-lake-settings`,
+     `list-data-cells-filter`, `glue get-tables` per database merged with
+     `jq -s '{TableList: [.[].TableList[]]}'`, `list-resources`, `iam list-attached-role-policies`;
+     plus `list-lake-formation-opt-ins` when any location is in hybrid access mode and
+     `cloudtrail describe-trails` for DB-05). Gate preconditions to state: `list-permissions` returns
+     explicitly granted permissions only; LF-tag-based and conditional grants are not resolved (DB-06);
+     grants to `IAMAllowedPrincipals` / `ALLIAMPrincipals` hand control to IAM; whether the
+     principal's IAM policies read S3 directly is judged by AWS-managed policy NAME only (inline,
+     customer and group policies, boundaries, SCPs, bucket policies → DB-06); Athena / Redshift
+     Spectrum query text is not in CloudTrail.
+   **databricks / redshift / bigquery / fabric / lakeformation**: `python3 .../eval_grants.py --dialect <…> --recorded <tmp> --role <principal> [--principal-confirmed] --ignore-dir <dir> --emit-json <tmp>/eval.json`
    (one `<file>.csv` per pack file; a missing or malformed file is a DB-06 UNKNOWN naming the
    capture command). The planner has no Databricks templates yet and says so.
 

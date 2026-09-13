@@ -236,6 +236,49 @@ SQL grants are ignored and DB-01..DB-08 are UNKNOWN.
 | `modules.csv` + EXECUTE grants | opaque read paths | DB-06 |
 | — | OneLake / shortcuts / Direct Lake read the same Delta files outside SQL; COPY INTO / OPENROWSET reach storage | DB-10 (INFO, probable) |
 
+## AWS Lake Formation pack — invocation and interpretation (v0.11, PARTIAL by design, fixture-validated)
+
+Recorded mode: `eval_grants.py --dialect lakeformation --recorded <dir>` reads seven required and two optional JSON captures
+from the user's own AWS CLI — `permissions.json` (the principal's `list-permissions`),
+`all_permissions.json` (everyone's, for `IAMAllowedPrincipals` / `ALLIAMPrincipals`),
+`settings.json`, `data_cells_filters.json`, `tables.json` (Glue schemas, for PII names and the
+column-filter maths), `resources.json` (registered locations; hybrid access mode), and
+`iam_policies.json` (attached managed policies, by name). No SQL runs anywhere.
+
+Identity model the module applies (`scripts/dialects/lakeformation.py`): the principal is an IAM
+role or user ARN (or SAML / Identity Center identity). Lake Formation permissions are explicit
+grants on Catalog / Database / Table / TableWithColumns / DataLocation / LF-Tag policy resources.
+`IAMAllowedPrincipals` Super on a resource means IAM alone governs it; `ALLIAMPrincipals` grants
+every principal in the account. Column filtering comes from `TableWithColumns.ColumnNames`
+(inclusion) or `ColumnWildcard.ExcludedColumnNames` (exclusion), and from granted data cells
+filters; Lake Formation has no masking function, a column is visible or excluded. Locations in
+hybrid access mode are governed by IAM for non-opted-in principals.
+
+| Input | Look for | Check |
+|---|---|---|
+| `permissions.json` + `all_permissions.json` | INSERT / DELETE / ALTER / DROP / ALL on tables, databases, catalog; grantable permissions | DB-01 |
+| | SELECT on tables (with the column maths), `TableWildcard`, everyone-grants | DB-02 |
+| `tables.json` × readable columns | PII-named Glue columns within the principal's column grants | DB-03 |
+| `tables.json` | no table named like a curated / masked layer | DB-04 |
+| `cloudtrail.json` + `settings.json` | trails present (multi-region, log validation); admins; GetDataAccess is CloudTrail's record for registered locations only | DB-05 (INFO probable, or HIGH with no trail; DB-06 without the capture) |
+| `iam_policies.json` | IAM USER (long-lived keys); AdministratorAccess / AmazonS3FullAccess (CRITICAL) or S3 read policies that bypass Lake Formation at unregistered / hybrid locations | DB-ID-01 |
+| `settings.json` + `all_permissions.json` + `resources.json` + `opt_ins.json` | 'Use only IAM access control' defaults; data lake admin; `IAMAllowedPrincipals` / `ALLIAMPrincipals` grants; tables under hybrid-mode locations where this principal is not opted in | DB-07 |
+| `permissions.json` + `data_cells_filters.json` | PII table read with no column list and no cells filter granted with SELECT (or read in full through another grant) | DB-08 |
+| — | GetDataAccess has no query text; direct S3 reads appear only as S3 data events (enablement not captured); Redshift federated catalogs emit none | DB-09 (probable) |
+| `permissions.json` | DATA_LOCATION_ACCESS | DB-10 |
+
+Optional captures that change verdicts: `opt_ins.json` (`list-lake-formation-opt-ins`) decides
+whether a hybrid-mode location is governed by Lake Formation or by IAM for THIS principal (without
+it, hybrid locations are DB-06, never a DB-07 claim); `cloudtrail.json` (`describe-trails`) is what
+DB-05 is judged from (no trails → HIGH; absent file → DB-06). Grant forms the module does not resolve
+(LFTagPolicy / LFTag / LFTagExpression, `Condition`) are listed in one DB-06 and their tables are not
+counted anywhere. A data cells filter counts as protection only when granted with SELECT and present
+in the filters capture. Catalog `SUPER_USER` / `ALL` reaches every captured table.
+
+Permanent DB-06s: explicit-grants-only; AWS-managed policies judged by name, and inline / customer /
+group policies, permission boundaries, SCPs and bucket policies never expanded.
+`plan_inputs.partial_by_design` is `true`.
+
 ## Remediation target state (the safe-db-access recipe; planner approved as a SPEC amendment 2026-09-11)
 
 1. Dedicated AI service principal, no interactive human sharing it. On Snowflake create it with
