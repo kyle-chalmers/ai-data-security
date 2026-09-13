@@ -1,0 +1,105 @@
+{
+  "TableList": [
+    {
+      "Name": "customers",
+      "DatabaseName": "retail",
+      "StorageDescriptor": {
+        "Location": "s3://acme-lake/raw/customers/",
+        "Columns": [
+          {
+            "Name": "customer_id",
+            "Type": "bigint"
+          },
+          {
+            "Name": "full_name",
+            "Type": "string"
+          },
+          {
+            "Name": "email",
+            "Type": "string"
+          },
+          {
+            "Name": "ssn",
+            "Type": "string"
+          },
+          {
+            "Name": "card_number",
+            "Type": "string"
+          },
+          {
+            "Name": "balance",
+            "Type": "decimal(12,2)"
+          }
+        ]
+      },
+      "PartitionKeys": []
+    },
+    {
+      "Name": "orders",
+      "DatabaseName": "retail",
+      "StorageDescriptor": {
+        "Location": "s3://acme-lake/raw/orders/",
+        "Columns": [
+          {
+            "Name": "order_id",
+            "Type": "bigint"
+          },
+          {
+            "Name": "customer_id",
+            "Type": "bigint"
+          },
+          {
+            "Name": "total",
+            "Type": "decimal(12,2)"
+          }
+        ]
+      },
+      "PartitionKeys": [
+        {
+          "Name": "order_date",
+          "Type": "date"
+        }
+      ]
+    },
+    {
+      "Name": "legacy_profiles",
+      "DatabaseName": "retail",
+      "StorageDescriptor": {
+        "Location": "s3://acme-lake/legacy/profiles/",
+        "Columns": [
+          {
+            "Name": "profile_id",
+            "Type": "bigint"
+          },
+          {
+            "Name": "phone",
+            "Type": "string"
+          },
+          {
+            "Name": "date_of_birth",
+            "Type": "date"
+          }
+        ]
+      },
+      "PartitionKeys": []
+    },
+    {
+      "Name": "campaigns",
+      "DatabaseName": "marketing",
+      "StorageDescriptor": {
+        "Location": "s3://acme-lake/raw/campaigns/",
+        "Columns": [
+          {
+            "Name": "campaign_id",
+            "Type": "bigint"
+          },
+          {
+            "Name": "channel",
+            "Type": "string"
+          }
+        ]
+      },
+      "PartitionKeys": []
+    }
+  ]
+}

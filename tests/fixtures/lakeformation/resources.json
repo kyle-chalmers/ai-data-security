@@ -1,0 +1,4 @@
+{"ResourceInfoList": [
+ {"ResourceArn": "arn:aws:s3:::acme-lake/raw", "RoleArn": "arn:aws:iam::111122223333:role/lf-register", "LastModified": 1.7E9, "HybridAccessEnabled": false},
+ {"ResourceArn": "arn:aws:s3:::acme-lake/legacy", "RoleArn": "arn:aws:iam::111122223333:role/lf-register", "LastModified": 1.7E9, "HybridAccessEnabled": true}
+]}

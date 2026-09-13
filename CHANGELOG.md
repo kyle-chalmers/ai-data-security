@@ -3,6 +3,30 @@
 All notable changes to AI Data Security are documented here. This project follows
 [Semantic Versioning](https://semver.org). Dates are ISO-8601.
 
+## [0.11.0] — 2026-09-13
+
+AWS Lake Formation pack (coverage, fifth platform), **partial by design**: recorded AWS CLI JSON,
+no SQL. Lake Formation grants are explicit; where IAM alone governs (IAMAllowedPrincipals, hybrid
+access mode, unregistered locations, S3 policies) the report says so.
+
+### Added
+- **`db-access-audit --dialect lakeformation`** (recorded via `--recorded <dir>`; seven JSON
+  captures from the user's own AWS CLI: the principal's and everyone's `list-permissions`,
+  `get-data-lake-settings`, `list-data-cells-filter`, Glue `get-tables`, `list-resources`,
+  `list-attached-role-policies`). The module evaluates table / TableWithColumns (inclusion and
+  exclusion lists) / TableWildcard / database / catalog / data-location grants, grantable
+  permissions, catalog `SUPER_USER`, `IAMAllowedPrincipals` and `ALLIAMPrincipals` as everyone-paths,
+  data cells filters (counted as protection only when granted with SELECT and captured) beside the
+  TableWithColumns column controls, 'Use only IAM access control' defaults and data lake admins
+  (DB-07), IAM users vs roles and AWS-managed S3 policies by name (DB-ID-01; inline / customer /
+  group policies always DB-06), hybrid-mode locations judged per principal from
+  `list-lake-formation-opt-ins` (DB-07, or DB-06 without opt-ins), DATA_LOCATION_ACCESS (DB-10),
+  CloudTrail trails from `describe-trails` (DB-05, or DB-06 without it), and states that
+  GetDataAccess carries no query text and that direct S3 reads appear only as S3 data events.
+  LF-tag-based and conditional grants are never resolved: they surface as DB-06. Six AWS pages
+  fetched live (+1 from the research pass) for the citation registry.
+- `doctor` lists the Lake Formation pack (`aws`).
+
 ## [0.10.0] — 2026-09-13
 
 Microsoft Fabric Warehouse / SQL analytics endpoint pack (coverage, fourth platform), **partial by
@@ -439,6 +463,7 @@ First public release. Feature-complete v1: audit-only, read-only, every finding 
   hunt): permission-glob precision, uniform fail-closed suppression, a value-leak in classification
   evidence, crash-resistance on hostile inputs, and a regex ReDoS were all fixed and regression-locked.
 
+[0.11.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.11.0
 [0.10.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.10.0
 [0.9.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.9.0
 [0.8.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.8.0

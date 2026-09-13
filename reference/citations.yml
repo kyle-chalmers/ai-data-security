@@ -426,6 +426,76 @@
       "published": "live doc",
       "accessed": "2026-09-13",
       "status": "current"
+    },
+    "lakeformation-list-permissions": {
+      "display": "AWS Lake Formation API: ListPermissions (explicitly granted permissions only; effective permissions only when both Principal and Resource are given; TableWithColumns inclusion / ColumnWildcard exclusion)",
+      "url": "https://docs.aws.amazon.com/lake-formation/latest/APIReference/API_ListPermissions.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "lakeformation-data-cells-filter": {
+      "display": "AWS Lake Formation API: ListDataCellsFilter (RowFilter, ColumnNames / ColumnWildcard.ExcludedColumnNames per table)",
+      "url": "https://docs.aws.amazon.com/lake-formation/latest/APIReference/API_ListDataCellsFilter.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "lakeformation-permissions-reference": {
+      "display": "AWS Lake Formation docs: permissions reference (SELECT/INSERT/DELETE/ALTER/DROP/DESCRIBE/Super per resource; IAMAllowedPrincipals Super = IAM alone governs; ALLIAMPrincipals; DATA_LOCATION_ACCESS)",
+      "url": "https://docs.aws.amazon.com/lake-formation/latest/dg/lf-permissions-reference.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "lakeformation-hybrid-access-mode": {
+      "display": "AWS Lake Formation docs: Hybrid access mode (non-opted-in principals access registered locations through IAM permissions alone)",
+      "url": "https://docs.aws.amazon.com/lake-formation/latest/dg/hybrid-access-mode.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "lakeformation-cli-list-permissions": {
+      "display": "AWS CLI reference: aws lakeformation list-permissions (--principal, --resource, --resource-type; PrincipalResourcePermissions JSON)",
+      "url": "https://docs.aws.amazon.com/cli/latest/reference/lakeformation/list-permissions.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "lakeformation-cloudtrail-getdataaccess": {
+      "display": "AWS Lake Formation best-practices guide: Lake Formation CloudTrail events (every data-access request is a GetDataAccess event with principal and table/location)",
+      "url": "https://aws.github.io/aws-lakeformation-best-practices/auditing/lake-formation-cloudtrail/",
+      "published": "live doc",
+      "accessed": "2026-09-11",
+      "status": "current"
+    },
+    "lakeformation-tbac": {
+      "display": "AWS Lake Formation Developer Guide: Lake Formation tag-based access control (LF-TBAC grants SELECT/INSERT etc. through LF-Tags in addition to named-resource grants; tables inherit tags from databases)",
+      "url": "https://docs.aws.amazon.com/lake-formation/latest/dg/tag-based-access-control.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "lakeformation-data-filter-grant": {
+      "display": "AWS Lake Formation Developer Guide: Granting data permissions provided by data filters (SELECT on the DataCellsFilter resource is what grants access to the filtered data)",
+      "url": "https://docs.aws.amazon.com/lake-formation/latest/dg/granting-data-perms-for-filters.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "lakeformation-hybrid-prerequisites": {
+      "display": "AWS Lake Formation Developer Guide: Prerequisites for setting up hybrid access mode (opted-in principals follow Lake Formation permissions; principals not opted in follow the Amazon S3 permission policies)",
+      "url": "https://docs.aws.amazon.com/lake-formation/latest/dg/hybrid-access-prerequisites.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
+    },
+    "lakeformation-cloudtrail-logging": {
+      "display": "AWS Lake Formation Developer Guide: Logging Lake Formation API calls using CloudTrail (GetDataAccess is logged whenever temporary credentials are requested for a registered location; without a trail only Event history; Redshift federated catalogs emit no GetDataAccess)",
+      "url": "https://docs.aws.amazon.com/lake-formation/latest/dg/logging-using-cloudtrail.html",
+      "published": "live doc",
+      "accessed": "2026-09-13",
+      "status": "current"
     }
   }
 }

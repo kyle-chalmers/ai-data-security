@@ -1,0 +1,10 @@
+{
+  "LakeFormationOptInsInfoList": [
+    {
+      "Resource": {"Database": {"CatalogId": "111122223333", "Name": "retail"}},
+      "Principal": {"DataLakePrincipalIdentifier": "arn:aws:iam::111122223333:role/analyst"},
+      "LastModified": 1.7e9,
+      "LastUpdatedBy": "arn:aws:iam::111122223333:role/lake-admin"
+    }
+  ]
+}

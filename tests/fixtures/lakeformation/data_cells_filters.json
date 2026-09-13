@@ -1,0 +1,4 @@
+{"DataCellsFilters": [
+ {"TableCatalogId": "111122223333", "DatabaseName": "retail", "TableName": "customers", "Name": "customers_no_pii",
+  "RowFilter": {"AllRowsWildcard": {}}, "ColumnWildcard": {"ExcludedColumnNames": ["ssn", "card_number", "email", "full_name"]}, "VersionId": "1"}
+]}
