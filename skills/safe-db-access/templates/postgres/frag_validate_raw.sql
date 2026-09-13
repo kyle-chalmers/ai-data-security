@@ -1,0 +1,2 @@
+    UNION ALL SELECT 'raw {{schema}}.{{table}} NOT readable', 'false', (SELECT has_table_privilege(c.oid, 'SELECT') FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = '{{schema}}' AND c.relname = '{{table}}')::text
+    UNION ALL SELECT 'raw {{schema}}.{{table}} NOT writable', 'false', (SELECT has_table_privilege(c.oid, 'INSERT') OR has_table_privilege(c.oid, 'UPDATE') OR has_table_privilege(c.oid, 'DELETE') FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = '{{schema}}' AND c.relname = '{{table}}')::text

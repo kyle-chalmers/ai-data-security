@@ -118,6 +118,20 @@ else
   echo "SKIP: shellcheck not found"
 fi
 
+step "planner lint (safe-db-access never connects, executes, or writes)"
+if grep -nE 'subprocess|os\.system|os\.popen|socket|psycopg|snowflake\.connector|urllib|http\.client|open\([^)]*["\x27][wa]' skills/safe-db-access/scripts/plan.py; then
+  echo "FAIL: plan.py contains a connect/execute/write primitive"
+  fail=1
+else
+  echo "OK: plan.py has no connect/execute/write primitives"
+fi
+if grep -rn '{{' skills/safe-db-access/templates | grep -vE '\{\{[a-z_]+\}\}'; then
+  echo "FAIL: malformed template slot"
+  fail=1
+else
+  echo "OK: template slots are well-formed"
+fi
+
 step "read-only SQL pack lint (no mutating statements)"
 if compgen -G "skills/db-access-audit/sql/*/*.sql" >/dev/null 2>&1; then
   if grep -riEn '^[[:space:]]*(insert|update|delete|drop|alter|create|grant|revoke|truncate|merge|call|copy)\b' \

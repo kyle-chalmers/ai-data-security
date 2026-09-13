@@ -1,0 +1,4 @@
+REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA {{db}}.{{schema}} FROM ROLE {{ai_role}};
+REVOKE ALL PRIVILEGES ON FUTURE TABLES IN SCHEMA {{db}}.{{schema}} FROM ROLE {{ai_role}};
+REVOKE ALL PRIVILEGES ON ALL VIEWS IN SCHEMA {{db}}.{{schema}} FROM ROLE {{ai_role}};
+REVOKE USAGE ON SCHEMA {{db}}.{{schema}} FROM ROLE {{ai_role}};

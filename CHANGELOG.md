@@ -3,6 +3,51 @@
 All notable changes to AI Data Security are documented here. This project follows
 [Semantic Versioning](https://semver.org). Dates are ISO-8601.
 
+## [0.6.0] — 2026-09-12
+
+The safe-db-access **planner** (ROADMAP v0.6; approved SPEC amendment 2026-09-11): the first
+"generate the fix" experience, delivered as reviewable text. Invariants unchanged. Existing
+finding verdicts are unchanged on the same inputs; DB-03's remediation text now points at keyed
+hashing and the planner instead of "per-row salted hashing", and the JSON gains `plan_inputs`.
+
+### Added
+- **`/ai-data-security:safe-db-access --audit <eval.json>`**: renders, for Postgres and Snowflake,
+  (1) a service identity (`NOINHERIT`/no server roles; `TYPE = SERVICE_AGENT`,
+  `DEFAULT_SECONDARY_ROLES = ()`), (2) a key vault for keyed-hash pseudonymization with the key
+  outside the AI role's reach, (3) a curated schema of masked views (Restricted omitted,
+  Confidential hashed; Snowflake secure views plus an `IS_AGENT_ACTIVATED()` masking policy on
+  Enterprise+), (4) revoke-raw / grant-curated incl. default privileges, PUBLIC (flagged REVIEW),
+  stages, (5) audit trail with the retention caveat, (6) a validation script run *as the AI role*,
+  with PUBLIC revocations rendered commented out unless `--include-public-revokes` (they affect
+  every role), curated view names that cannot collide across schemas, and Snowflake masking
+  policies attached only to STRING-typed columns (others make the plan INCOMPLETE),
+  (7) rollback. Fixed templates; every identifier validated; hostile names are listed under NOT
+  RENDERED and never reach SQL; missing inputs make the plan INCOMPLETE. The planner never
+  connects, executes, or writes a file. Every plan states that hashed identifiers are pseudonymized,
+  not anonymized.
+- **`columns.sql`** in the Postgres pack (read-only; names and types only) and `--columns` on the
+  evaluator, so curated views can name their columns explicitly.
+- **`plan_inputs`** in the db-access-audit JSON (`eval_grants` tool version 3 → 4): value-free
+  structured facts the planner consumes; independent of findings, `null` when an input is missing.
+- **CI proof**: the Postgres docker fixture now renders the plan, applies it as the DBA, runs the
+  validation script as `ai_agent` (every row `ok = t`), proves a raw read is refused and the
+  curated query succeeds, re-audits (DB-01/02/03/04/07/10/ID-01 gone), rolls back, and re-audits
+  (pack outputs back to the goldens). Both dialects' renders are diffed against goldens; refusal
+  paths are tested; `dev/validate.sh` lints the planner for connect/execute/write primitives.
+
+### Changed
+- **Pseudonymized tier** (evaluator, both dialects): a PII-named column with a `_pseudo` / `_hash`
+  / `_hmac` / `_token` suffix **on a view whose definition hashes or masks** is reported by DB-03
+  as INFO ("still personal data", NIST SP 800-188 §4.3.2) and no longer counted by DB-08 as
+  unattached raw PII. Provenance, not names: a base-table column named `ssn_hash` stays Restricted,
+  and without a views input nothing is pseudonymized. Without this tier the plan's own output
+  re-triggers the findings it fixed.
+- `identity.sql` (Postgres) now records the grantor of each default privilege
+  (`default_acl` detail is `grantor:PRIVILEGE`), because `ALTER DEFAULT PRIVILEGES` must say
+  `FOR ROLE <grantor>` to have any effect on that grantor's future objects.
+- `doctor` lists the planner; `security-audit` phase 4b appends the plan after a DB audit with
+  findings; `db-access-audit` step 6 offers it.
+
 ## [0.5.0] — 2026-09-12
 
 Agent-config depth (ROADMAP v0.5): the config-side checks now cover the seams where 2025–2026
@@ -276,6 +321,7 @@ First public release. Feature-complete v1: audit-only, read-only, every finding 
   hunt): permission-glob precision, uniform fail-closed suppression, a value-leak in classification
   evidence, crash-resistance on hostile inputs, and a regex ReDoS were all fixed and regression-locked.
 
+[0.6.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.6.0
 [0.5.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.5.0
 [0.4.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.4.0
 [0.3.0]: https://github.com/kyle-chalmers/ai-data-security/releases/tag/v0.3.0

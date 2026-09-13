@@ -6,7 +6,7 @@ attr,rolcreaterole,false
 attr,rolinherit,true
 attr,rolreplication,false
 attr,rolsuper,false
-default_acl,app:tables,SELECT
+default_acl,app:tables,postgres:SELECT
 inherited_grant,app.customers,analyst_group:SELECT
 inherited_grant,app.orders,analyst_group:SELECT
 member_of,analyst_group,inherit

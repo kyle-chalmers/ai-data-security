@@ -45,6 +45,7 @@ whole token there). Anchored whole-name matching missed every prefixed real-worl
 | `card_number`, `pan`, `cvv`, `account_number`, `routing_number` | Restricted |
 | `dob`, `birth_date`, `date_of_birth`, `medical`, `diagnosis` | Restricted |
 | `email`, `phone`, `mobile`, `address`, `first_name`, `last_name`, `full_name`, `ip_address` | Confidential |
+| any of the above with a pseudonymization suffix (`*_pseudo`, `*_hash`, `*_hmac`, `*_token`) **on a view whose definition hashes or masks** | **Pseudonymized** (warehouse audit only, v0.6): DB-03 INFO, never counted as unmasked exposure. Still personal data under NIST SP 800-188 §4.3.2; the key must stay outside the AI role's reach. The same name on a base table, or on a view with no hashing in its definition, stays Restricted/Confidential: names are not evidence |
 | `salary`, `income`, `compensation` | Confidential |
 
 An org profile (`.ai-data-security.yml`, see [org-config.md](org-config.md)) may **add**

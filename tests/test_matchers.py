@@ -159,6 +159,31 @@ for entry, expect in [("ref('m')", "m"), ('ref("m")', "m"), ("ref('pkg', 'm')", 
     if got != expect:
         failures.append(f"depends_on_model({entry!r}) = {got!r}, expected {expect!r}")
 
+# v0.6: pseudonymization is provenance-based (suffix AND a hashing view), never name-only.
+eg = load("eval_grants_v06", "skills/db-access-audit/scripts/eval_grants.py")
+pii = [{"table_schema": "app", "table_name": "customers", "column_name": "ssn_hash"},
+       {"table_schema": "curated", "table_name": "customers", "column_name": "email_pseudo"},
+       {"table_schema": "curated", "table_name": "plain", "column_name": "email_pseudo"},
+       {"table_schema": "curated", "table_name": "customers", "column_name": "email"}]
+views = [{"table_schema": "curated", "table_name": "customers", "has_masking_signal": "t"},
+         {"table_schema": "curated", "table_name": "plain", "has_masking_signal": "f"}]
+got = eg.pseudonymized_set("postgres", pii, views)
+if got != {("curated", "customers", "email_pseudo")}:
+    failures.append(f"pseudonymized_set(postgres) = {got!r}")
+if eg.pseudonymized_set("postgres", pii, None):
+    failures.append("pseudonymized_set must be empty without a views input (fail closed)")
+sf_pii = [{"table_schema": "CURATED", "table_name": "CUSTOMERS", "column_name": "EMAIL_PSEUDO"}]
+if eg.pseudonymized_set("snowflake", sf_pii, [{"schema_name": "CURATED", "name": "CUSTOMERS"}]):
+    failures.append("snowflake view without a `text` column must not count as pseudonymized")
+if eg.pseudonymized_set("snowflake", sf_pii, [{"schema_name": "CURATED", "name": "CUSTOMERS", "text": "select sha2(x) from t"}]) != {("CURATED", "CUSTOMERS", "EMAIL_PSEUDO")}:
+    failures.append("snowflake view with a hashing definition should count as pseudonymized")
+pl = load("plan_v06", "skills/safe-db-access/scripts/plan.py")
+if pl.view_names([("a", "t"), ("b", "t"), ("a", "u")]) != {("a", "t"): "a_t", ("b", "t"): "b_t", ("a", "u"): "u"}:
+    failures.append("view_names collision handling")
+for cid, ok in [("DB-01", True), ("DB-ID-01", True), ("AC-10", True), ("DB-99\nDROP", False), ("x", False)]:
+    if bool(pl.CHECK_ID.match(cid)) is not ok:
+        failures.append(f"CHECK_ID({cid!r}) != {ok}")
+
 # Fail-closed expiry: unparseable AND blank expires= must both count as expired.
 # Blank expires= (fail-open) was an edge-hardening finding — locked here across all evaluators.
 permeval = load("permeval", "skills/ai-config-audit/scripts/permeval.py")

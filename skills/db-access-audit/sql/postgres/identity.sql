@@ -50,7 +50,9 @@ SELECT 'default_acl',
        COALESCE(d.defaclnamespace::regnamespace::text, '<all schemas>') || ':' ||
        CASE d.defaclobjtype WHEN 'r' THEN 'tables' WHEN 'S' THEN 'sequences' WHEN 'f' THEN 'functions'
                             WHEN 'T' THEN 'types' WHEN 'n' THEN 'schemas' ELSE d.defaclobjtype::text END,
-       a.privilege_type
+       -- grantor first: ALTER DEFAULT PRIVILEGES only edits the executing role's defaults, so the
+       -- planner must say FOR ROLE <grantor> (v0.6)
+       d.defaclrole::regrole::text || ':' || a.privilege_type
 FROM pg_default_acl d, LATERAL aclexplode(d.defaclacl) a
 JOIN pg_roles gr ON gr.oid = a.grantee
 JOIN closure c ON c.rolname = gr.rolname

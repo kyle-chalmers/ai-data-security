@@ -56,7 +56,7 @@ echo "loading fixture schema..."
 docker exec -i "$NAME" psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 \
   < tests/fixtures/postgres/init.sql
 
-mkdir -p "$OUT"
+rm -rf "$OUT"; mkdir -p "$OUT"
 for f in "$PACK"/*.sql; do
   name="$(basename "$f" .sql)"
   # default_transaction_read_only=on enforces the pack's read-only promise at the session level.
@@ -135,6 +135,106 @@ assert "unconfirmed principal: every severity capped at MEDIUM" \
   '[.findings[] | .severity == "MEDIUM" or .severity == "LOW" or .severity == "INFO"] | all'
 assert "unconfirmed principal: DB-06 unknown present" \
   '.unknowns | any(.check_id == "DB-06")'
+
+# ---------------------------------------------------------------------------------------------
+# v0.6 safe-db-access planner: render from the audit JSON, apply as the DBA (the harness plays the
+# human), validate AS the AI role, re-audit (findings gone), roll back, re-audit (findings back).
+# The planner itself only ever printed text.
+# ---------------------------------------------------------------------------------------------
+echo "planner: rendering the plan from the fixture audit..."
+PLAN="skills/safe-db-access/scripts/plan.py"
+PO="$OUT/planner"; mkdir -p "$PO"
+python3 skills/db-access-audit/scripts/eval_grants.py \
+  --grants "$OUT/grants.csv" --pii "$OUT/pii_columns.csv" \
+  --views "$OUT/masked_views.csv" --settings "$OUT/audit_logging.csv" "${V04_ARGS[@]}" \
+  --columns "$OUT/columns.csv" --role ai_agent --principal-confirmed --emit-json "$EVAL_OUT"
+# --include-public-revokes: the harness plays the human who reviewed the PUBLIC revocations.
+python3 "$PLAN" --audit "$EVAL_OUT" --include-public-revokes > "$PO/plan.sql"
+for sec in identity vault curated grants audit; do python3 "$PLAN" --audit "$EVAL_OUT" --include-public-revokes --section "$sec"; done > "$PO/plan-apply.sql"
+python3 "$PLAN" --audit "$EVAL_OUT" --include-public-revokes --section validate > "$PO/plan-validate.sql"
+python3 "$PLAN" --audit "$EVAL_OUT" --include-public-revokes --section rollback > "$PO/plan-rollback.sql"
+if grep -q 'Status: INCOMPLETE' "$PO/plan.sql"; then echo "FAIL: plan is INCOMPLETE with every input present"; fail=1; fi
+if grep -q '{{' "$PO/plan.sql"; then echo "FAIL: unfilled template slot in plan"; fail=1; fi
+if grep -q 'fixture-placeholder' "$PO/plan.sql"; then echo "FAIL: a value leaked into the plan"; fail=1; fi
+echo "OK: plan rendered ($(wc -l < "$PO/plan.sql") lines), complete, no unfilled slots"
+
+echo "planner: applying sections 1-5 as the DBA (harness acts as the human)..."
+if docker exec -i "$NAME" psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 < "$PO/plan-apply.sql" > "$PO/plan-apply.log" 2>&1; then
+  echo "OK: plan applied without error"
+else
+  echo "FAIL: plan apply errored"; cat "$PO/plan-apply.log"; fail=1
+fi
+
+echo "planner: validation AS ai_agent..."
+docker exec -i "$NAME" psql -U ai_agent -d postgres --csv -q -v ON_ERROR_STOP=1 < "$PO/plan-validate.sql" > "$PO/plan-validate.csv" 2>&1 || { echo "FAIL: validation script errored"; cat "$PO/plan-validate.csv"; fail=1; }
+n_checks="$(tail -n +2 "$PO/plan-validate.csv" | grep -c . || true)"
+n_bad="$(tail -n +2 "$PO/plan-validate.csv" | grep -vc ',t$' || true)"
+if [ "${n_checks:-0}" -ge 15 ] && [ "${n_bad:-0}" -eq 0 ]; then
+  echo "OK: validation — $n_checks checks, all ok = t"
+else
+  echo "FAIL: validation — $n_checks checks, $n_bad not ok"; cat "$PO/plan-validate.csv"; fail=1
+fi
+if docker exec "$NAME" psql -U ai_agent -d postgres -tAc 'SELECT ssn FROM app.customers LIMIT 1' >/dev/null 2>&1; then
+  echo "FAIL: ai_agent can still read the raw table"; fail=1
+else
+  echo "OK: raw read as ai_agent is refused"
+fi
+if docker exec "$NAME" psql -U ai_agent -d postgres -tAc 'SELECT count(*) FROM curated.customers' >/dev/null 2>&1; then
+  echo "OK: analytics query on the curated view succeeds as ai_agent"
+else
+  echo "FAIL: curated view not readable by ai_agent"; fail=1
+fi
+
+echo "planner: re-auditing AFTER apply..."
+AFTER="$PO/after"; mkdir -p "$AFTER"
+for f in "$PACK"/*.sql; do
+  name="$(basename "$f" .sql)"
+  docker exec -i -e PGOPTIONS="-c default_transaction_read_only=on" "$NAME" \
+    psql -U postgres -d postgres --csv -q -v ON_ERROR_STOP=1 -v ai_role='ai_agent' \
+    -v org_restricted='(^|_)(__none__)(_|$)' -v org_confidential='(^|_)(__none__)(_|$)' -f - \
+    < "$f" > "$AFTER/$name.csv"
+done
+python3 skills/db-access-audit/scripts/eval_grants.py \
+  --grants "$AFTER/grants.csv" --pii "$AFTER/pii_columns.csv" \
+  --views "$AFTER/masked_views.csv" --settings "$AFTER/audit_logging.csv" \
+  --identity "$AFTER/identity.csv" --policies "$AFTER/policy_attachment.csv" \
+  --external "$AFTER/external_paths.csv" --audit-quality "$AFTER/audit_quality.csv" \
+  --columns "$AFTER/columns.csv" --role ai_agent --principal-confirmed --emit-json "$AFTER/eval.json"
+EVAL_OUT="$AFTER/eval.json"
+assert "after apply: DB-01 (writes), DB-02 (base tables), DB-03 (raw PII), DB-07 (indirect), DB-08 (unattached PII), DB-10 (server roles), DB-ID-01 are gone" \
+  '[.findings[] | select(.check_id == "DB-01" or .check_id == "DB-02" or (.check_id == "DB-03" and .severity != "INFO") or .check_id == "DB-07" or .check_id == "DB-08" or .check_id == "DB-10" or .check_id == "DB-ID-01")] | length == 0'
+assert "after apply: the hashed columns surface as DB-03 INFO (pseudonymized, still personal data), by name" \
+  '.findings | any(.check_id == "DB-03" and .severity == "INFO" and (.evidence | test("email_pseudo")) and (.evidence | test("personal data")))'
+assert "after apply: the AI role reads only curated views (grants show no base table)" \
+  '[.findings[] | select(.check_id == "DB-02")] | length == 0'
+assert "after apply: DB-04 gone (curated views show a hashing signal)" \
+  '[.findings[] | select(.check_id == "DB-04")] | length == 0'
+assert "after apply: DB-09 no longer reports a missing per-role log_statement" \
+  '[.findings[] | select(.check_id == "DB-09" and (.evidence | test("no per-role log_statement")))] | length == 0'
+assert "after apply: no DB-06 unknowns (every input captured)" \
+  '[.unknowns[] | select(.check_id == "DB-06")] | length == 0'
+
+echo "planner: rolling back (section 7) and re-auditing..."
+if docker exec -i "$NAME" psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 < "$PO/plan-rollback.sql" > "$PO/plan-rollback.log" 2>&1; then
+  echo "OK: rollback applied without error"
+else
+  echo "FAIL: rollback errored"; cat "$PO/plan-rollback.log"; fail=1
+fi
+ROLL="$PO/rollback"; mkdir -p "$ROLL"
+for f in "$PACK"/*.sql; do
+  name="$(basename "$f" .sql)"
+  docker exec -i -e PGOPTIONS="-c default_transaction_read_only=on" "$NAME" \
+    psql -U postgres -d postgres --csv -q -v ON_ERROR_STOP=1 -v ai_role='ai_agent' \
+    -v org_restricted='(^|_)(__none__)(_|$)' -v org_confidential='(^|_)(__none__)(_|$)' -f - \
+    < "$f" > "$ROLL/$name.csv"
+done
+for name in grants pii_columns identity external_paths columns; do
+  if diff -q "$EXPECTED/$name.csv" "$ROLL/$name.csv" >/dev/null; then
+    echo "OK: rollback restored $name.csv to the original golden"
+  else
+    echo "FAIL: after rollback $name.csv differs from the golden"; diff -u "$EXPECTED/$name.csv" "$ROLL/$name.csv" || true; fail=1
+  fi
+done
 
 echo
 if [ "$fail" -eq 0 ]; then echo "POSTGRES PACK: PASS"; else echo "POSTGRES PACK: FAIL"; exit 1; fi

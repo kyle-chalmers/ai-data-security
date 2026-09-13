@@ -1,0 +1,25 @@
+-- ============================================================================================
+-- ai-data-security safe-db-access PLAN ({{dialect}}) — generated text, NOT executed, NOT saved
+-- ============================================================================================
+-- Status: {{status}}   planner tool version {{tool_version}}
+-- AI role: {{ai_role}}   curated schema: {{curated}}   key vault schema: {{vault}}   view owner: {{owner_role}}
+-- Audit findings this plan answers: {{findings}}
+-- Readable base tables: {{n_tables}}   Restricted-tier columns: {{n_restricted}}   Confidential-tier columns: {{n_confidential}}
+--
+-- HOW TO USE: a human with DBA rights reviews every statement, runs sections 1-5 in a
+-- transaction-capable session, then runs section 6 AS THE AI ROLE, then re-runs
+-- /ai-data-security:db-access-audit and attaches before/after. Section 7 undoes the change.
+-- The planner never connected to anything; the statements below came from fixed templates with
+-- identifiers the audit captured and this tool validated (no quoting, no escaping, no values).
+--
+-- WHAT THIS DOES NOT DO: it does not anonymize. Hashed identifiers are PSEUDONYMIZED personal
+-- data (NIST SP 800-188 §4.3.2; EDPB Guidelines 01/2025) — the keyed hash only stops the agent from
+-- reading the raw value. The key lives in {{vault}}, which the AI role cannot read; rotate it on
+-- the same schedule as other credentials and re-create the views afterwards. It does not defend
+-- against prompt injection, and it does not change what the agent's provider retains.
+--
+-- INCOMPLETE items (fix and re-plan before executing):
+{{incomplete}}-- NOT RENDERED (identifiers the planner refused; review these objects by hand):
+{{not_rendered}}-- Sources:
+{{citations}}-- ============================================================================================
+
