@@ -145,6 +145,12 @@ else
   echo "SKIP: no SQL packs yet"
 fi
 
+step "skill surface (front-page cap, trigger phrases, narration, Next:, glossary, pack READMEs)"
+if ! python3 tests/test_skill_surface.py; then
+  echo "FAIL: tests/test_skill_surface.py"
+  fail=1
+fi
+
 step "fixture checks"
 if [ -x tests/run-fixture-checks.sh ]; then
   if ! tests/run-fixture-checks.sh; then

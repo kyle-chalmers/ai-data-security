@@ -1,5 +1,5 @@
 ---
-description: Static audit of a dbt project's YAML, with no warehouse connection — which models and columns are tagged as PII, which exposures (dashboards, AI agents, apps) consume them, whether a masking package or masked layer is declared, and which likely-PII columns carry no tag at all. Read-only; cited findings; counts and names only. A missing tag is never proof of no PII.
+description: 'Static audit of a dbt project''s YAML with no warehouse connection. Shows which models and columns are tagged as PII, which exposures consume them, whether masking is declared, and which likely-PII columns carry no tag. A missing tag is never proof of no PII. Use when the user has a dbt project and asks about PII tagging, masking, or what their dashboards, apps, and agents consume.'
 argument-hint: "[path-to-dbt-project]"
 context: fork
 allowed-tools: "Bash(python3 *), Read, Glob"
@@ -12,6 +12,9 @@ and `packages.yml`. It runs on the repo alone (no `dbt` binary, no connection), 
 across every warehouse the project targets. Findings follow
 [finding-format.md](${CLAUDE_PLUGIN_ROOT}/reference/finding-format.md); PII column patterns follow
 [four-tier-framework.md](${CLAUDE_PLUGIN_ROOT}/reference/four-tier-framework.md).
+
+Narrate per [narration.md](${CLAUDE_PLUGIN_ROOT}/reference/narration.md): one line of what and why before
+each step, one line of result after, and say what each answer changes before asking anything.
 
 What it can and cannot prove, said once here and again in every finding: **the YAML declares
 intent. It cannot prove the warehouse enforces it, and a column with no tag is not a column with
@@ -36,5 +39,8 @@ no PII.** For enforcement, run `db-access-audit` against the target warehouse.
 3. **Render** per finding-format.md. Two emphases: name the exposures of type `application` or
    `analysis` that consume tagged models (that is where an agent reads them), and repeat that
    tags are declarations. Suggest `db-access-audit` for the enforcement half.
+
+**Next:** `/ai-data-security:db-access-audit` against the warehouse this project targets, which
+checks whether the declarations are enforced.
 
 If invoked by the `security-audit` orchestrator, return the raw JSON fenced after the report.

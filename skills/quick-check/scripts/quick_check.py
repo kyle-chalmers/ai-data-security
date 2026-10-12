@@ -32,6 +32,7 @@ LANE_TIMEOUT = 35  # seconds per evaluator (3 lanes < 120 s total); a timeout be
 EVAL_SECRETS = os.path.join(PLUGIN_ROOT, "skills", "secrets-scanner", "scripts", "eval_secrets.py")
 PERMEVAL = os.path.join(PLUGIN_ROOT, "skills", "ai-config-audit", "scripts", "permeval.py")
 CLASSIFY = os.path.join(PLUGIN_ROOT, "skills", "data-classification", "scripts", "classify_hints.py")
+CHECKS = os.path.join(PLUGIN_ROOT, "reference", "checks.yml")
 
 
 def _valid_blob(data):
@@ -216,6 +217,38 @@ def verdict_lines(secrets, agent, data):
     return lines
 
 
+def load_titles():
+    """Plain titles from the check registry, so the text output can explain its own codes."""
+    try:
+        with open(CHECKS, encoding="utf-8") as fh:
+            return {k: v["title"] for k, v in json.load(fh)["checks"].items()}
+    except (OSError, ValueError, KeyError, TypeError):
+        return {}
+
+
+def code_key(lines, unknowns, titles, already_titled):
+    """Check IDs the verdict lines and UNKNOWN list mention, in order of first appearance, with
+    their titles. IDs already printed with a title (the line-2 breakdown) are not repeated."""
+    seen = []
+    mentioned = re.findall(r"\b(?:SS|AC|DC|DBT|DB)-(?:ID-)?\d+\b", " ".join(lines))
+    for cid in mentioned + [u.get("check_id") for u in unknowns]:
+        if cid and cid not in seen and cid not in already_titled:
+            seen.append(cid)
+    return [(cid, titles[cid]) for cid in seen if cid in titles]
+
+
+def other_agent_findings(agent):
+    """Break the 'N other finding(s)' count on verdict line 2 into check IDs, most frequent first."""
+    if not agent:
+        return []
+    counts = {}
+    for f in agent.get("findings", []):
+        cid = f.get("check_id")
+        if cid not in ("AC-01", "AC-05", "AC-07"):
+            counts[cid] = counts.get(cid, 0) + 1
+    return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", required=True)
@@ -279,14 +312,26 @@ def main():
         return 0
     print(f"ai-data-security quick-check — {target} ({elapsed}s)")
     print()
+    titles = load_titles()
+    breakdown = other_agent_findings(agent)
     for line in lines:
         print(line)
+        if line.startswith("2. "):
+            for cid, n in breakdown:
+                print(f"     {cid} x{n}  {titles.get(cid, '')}".rstrip())
     print()
     print(f"UNKNOWN ({len(unknowns)}):")
     for u in unknowns:
         print(f"  - {u['check_id']}: {u['reason']} → {u['action']}")
     if suppressed:
         print(f"Suppressed (appendix): {len(suppressed)} finding(s) via .ai-data-security-ignore")
+    key = code_key(lines, unknowns, titles, {cid for cid, _ in breakdown})
+    if key:
+        print()
+        print("What the codes mean (full list: docs/glossary.md):")
+        width = max(len(cid) for cid, _ in key)
+        for cid, title in key:
+            print(f"  {cid.ljust(width)}  {title}")
     print()
     print("Findings above pass through from the evaluators with citations and fingerprints; run the"
           " full skills for the rendered report.")

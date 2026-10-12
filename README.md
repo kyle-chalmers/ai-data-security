@@ -35,12 +35,25 @@ findings** with concrete fixes. Read-only by design; nothing mutates anything.
 
 ## Start here
 
+**New here?** [docs/getting-started.md](docs/getting-started.md) has three lanes: see a sample
+report in two minutes with nothing installed, audit a project folder, or audit a warehouse. To see
+the output before installing anything, read [examples/sample-report.md](examples/sample-report.md).
+
+**What you need:**
+
+| Tool | Required? | What it's for |
+|---|---|---|
+| [gitleaks](https://github.com/gitleaks/gitleaks) (`brew install gitleaks`) | Yes, for the secrets lane | Finds the secrets. Without it the secrets lane reports UNKNOWN rather than substituting a weaker scanner |
+| `python3` | Yes | Runs the bundled evaluators that decide every verdict. Standard library only, nothing to `pip install` |
+| `psql`, [Snowflake CLI](https://docs.snowflake.com/en/developer-guide/snowflake-cli), [Databricks SQL CLI](https://docs.databricks.com/aws/en/dev-tools/databricks-sql-cli), `bq` + `gcloud`, `sqlcmd`, `aws`, `duckdb` | Only for the warehouse you audit | Connects to your warehouse with the login you have already signed in to. The plugin never handles the password |
+| docker | No | Only to run the test suite |
+
+Install once, then run in any project:
+
 ```bash
 claude plugin marketplace add kyle-chalmers/ai-data-security
 claude plugin install ai-data-security@ai-data-security
 ```
-
-Then, in any project:
 
 ```
 /ai-data-security:doctor          # what this machine can audit, and what will be UNKNOWN
@@ -54,16 +67,30 @@ the results into one prioritized report:
 /ai-data-security:security-audit <path> [--db '--dialect postgres --connection <conninfo> --role <ai-role>']
 ```
 
-**Requirements:** [gitleaks](https://github.com/gitleaks/gitleaks) (`brew install gitleaks`) for
-the secrets scan; the skill fails closed (UNKNOWN, with instructions) rather than substituting a
-weaker scanner. `python3` (stdlib only). Optional: `psql` / [Snowflake CLI](https://docs.snowflake.com/en/developer-guide/snowflake-cli)
-/ [Databricks SQL CLI](https://docs.databricks.com/aws/en/dev-tools/databricks-sql-cli) / `aws` / `duckdb` for live DB audits; docker only if you run the test suite. `/doctor` checks all of these.
+Codes like `AC-07` and terms like "effective identity" are defined in the
+[glossary](docs/glossary.md). When something does not work, start with
+[troubleshooting](docs/troubleshooting.md).
+
+### What Claude can and can't see
+
+- **Verdicts come from scripts.** Bundled Python decides every severity and every UNKNOWN; Claude
+  reads the result and writes the report, and cannot turn an UNKNOWN into a pass.
+- **No secret or data values.** gitleaks runs with `--redact`, evaluators carry paths and rule IDs
+  only, and classification reports counts and column names.
+- **No passwords, no rows.** Warehouse queries return metadata only (grants, object and column
+  names, settings), never rows from your tables. Warehouse audits use your already-signed-in CLI,
+  show you exactly which read-only queries will run, and wait for your confirmation before
+  touching the database.
+- **Scanned content is untrusted.** Text inside files, git history, or query results cannot
+  override the skills' instructions.
+
+The full trust model and its known limits are in [SECURITY.md](SECURITY.md).
 
 ## Skills
 
 | Skill | What it does |
 |---|---|
-| `/ai-data-security:doctor` | Detects gitleaks, `psql`, `snow`, docker, and the plugin's own registry; prints a capability matrix so you know before running which checks will be UNKNOWN |
+| `/ai-data-security:doctor` | Detects gitleaks, every warehouse CLI the packs use, and the plugin's own registry and evaluators; prints a capability matrix so you know before running which skills and packs are ready, partial, or will be UNKNOWN. Installs nothing |
 | `/ai-data-security:quick-check <path>` | Zero flags: secrets on disk an agent can read, deny-rule and sandbox posture, Restricted-tier file count. Three verdict lines and the UNKNOWN list |
 | `/ai-data-security:secrets-scanner <path>` | Secrets on disk **and** in git history (gitleaks), plus the exposure matrix gitleaks doesn't compute: on-disk × in-history × agent-readable × pushed-to-remote |
 | `/ai-data-security:ai-config-audit <path>` | Permission deny/allow rules, Bash sandbox posture, MCP configs across Claude, Cursor, Gemini, Codex, VS Code, Windsurf, Cline, Roo, Continue, Copilot CLI, OpenCode; unpinned MCP packages; **write-capable warehouse MCP servers** (Snowflake statement permissions, Postgres MCP access mode, Toolbox tool statements); local credential sinks (DuckDB secrets, warehouse CLI configs, shell history); plaintext transcripts; retention-tier guidance |

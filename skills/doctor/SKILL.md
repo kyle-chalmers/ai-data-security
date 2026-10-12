@@ -1,6 +1,6 @@
 ---
-description: Check what this machine can audit before running anything — detects gitleaks, psql, snow, docker, verifies the plugin's citation registry and evaluator scripts, reports Bash sandbox posture, and prints a capability matrix naming which checks will be UNKNOWN. Read-only; installs nothing.
-argument-hint: "[--home <dir>]"
+description: 'Check what this machine can audit before running anything: which tools are installed, which skills and warehouse packs are ready, partial, or will come back UNKNOWN, plus registry and sandbox health. Read-only; installs nothing. Use when the user says "set me up", "what do I need to install", "why is this UNKNOWN", or is using the plugin for the first time.'
+argument-hint: "(none: checks this machine)"
 allowed-tools: "Bash(python3 *), Read"
 ---
 
@@ -8,6 +8,9 @@ allowed-tools: "Bash(python3 *), Read"
 
 Run this first. It answers "what will this plugin be able to verify on this machine?" so an
 audit never surprises you with UNKNOWNs it could have predicted.
+
+Narrate per [narration.md](${CLAUDE_PLUGIN_ROOT}/reference/narration.md): one line of what and why before
+each step, one line of result after, and say what each answer changes before asking anything.
 
 ## Steps
 
@@ -31,7 +34,7 @@ audit never surprises you with UNKNOWNs it could have predicted.
    - `psql` / Snowflake CLI only if the user plans a live DB audit; `--recorded <dir>` works
      without them.
 
-4. End with the suggested next command: `/ai-data-security:quick-check <path>` for a
+4. End with `Next:` and the suggested command: `/ai-data-security:quick-check <path>` for a
    one-minute read, or `/ai-data-security:security-audit <path>` for the full flow.
 
 AC-06 (consumer retention tier) is always UNKNOWN and the doctor says so; it is an account
