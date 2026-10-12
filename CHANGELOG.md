@@ -3,6 +3,63 @@
 All notable changes to AI Data Security are documented here. This project follows
 [Semantic Versioning](https://semver.org). Dates are ISO-8601.
 
+## [0.13.0] - 2026-10-11
+
+Onboarding and explanation pass, modelled on what made the StreamSnow plugin easy to pick up. No
+check logic, severity, or verdict changed; a repo audited with 0.12.0 gets the same findings.
+
+### Added
+- **`docs/getting-started.md`** with three lanes: see a sample report with nothing installed, audit
+  a project folder, or audit a warehouse. Includes a table of the auditor access each warehouse
+  pack needs and what turns UNKNOWN without it.
+- **`docs/glossary.md`**: plain definitions for the terms reports use (UNKNOWN, fail closed,
+  effective identity, secondary roles, posture pack, and others) and every check ID with its
+  title. The check table is generated from `reference/checks.yml` by `dev/gen_glossary.py`.
+- **`docs/troubleshooting.md`** in Symptom / Cause / Fix form.
+- **`examples/sample-report.md`**: real quick-check output on the `ai-config` fixture, annotated.
+- **`reference/narration.md`**: the shared contract every skill follows when it talks to the
+  user (what and why before each step, result after, what each answer changes, a `Next:` line).
+- **quick-check explains its codes.** The text output breaks "N other finding(s)" down by check
+  and ends with the plain title of every code it used. The JSON output is unchanged.
+- `skills/db-access-audit/packs.md` holds the per-dialect gate, capture, and evaluation detail,
+  and Postgres and Snowflake now have capture READMEs like the other packs.
+- `tests/test_skill_surface.py` (run by `dev/validate.sh`): SKILL.md bodies stay at or under 80
+  lines, every description says when to use it, every skill points at the narration contract and
+  ends with `Next:`, the glossary covers every check, and every pack has a README.
+
+### Changed
+- Every skill description now leads with what it does and ends with "Use when..." phrases, and is
+  quoted so a colon can never break the frontmatter.
+- `db-access-audit/SKILL.md` went from 196 to 80 lines; the moved per-dialect text is unchanged in
+  `packs.md`. The gate now says what each confirmation changes, and the run ends with the eval
+  JSON path and the exact `safe-db-access` command (or says the planner has no templates for that
+  dialect). `allowed-tools` pre-approves the specific capture commands each non-Postgres pack
+  documents, so captures prompt less. `bq query`, like the existing `psql` and `snow` entries, can
+  run any SQL; the pack lint, not the permission rule, is what keeps the queries read-only.
+- `safe-db-access` checks the dialect first and says plainly that only Postgres and Snowflake have
+  templates.
+- README: prerequisites table with a "What it's for" column, a "What Claude can and can't see"
+  section, links to the new docs, and a corrected `doctor` description.
+
+### Fixed
+- **Postgres false clean on an unprivileged auditor.** `information_schema` shows a grant only to
+  its grantor, members of the grantee, and superusers, so a capture by any other login produced an
+  empty `grants.csv` that read as "no grants" and a clean DB-01/DB-02/DB-03/DB-07. `identity.sql`
+  now records the auditor's standing (kind `auditor`: user, rolsuper, sees_ai_role_grants) and
+  `eval_grants.py` (tool version 5) reports DB-06 "Grant visibility partial" when the auditor
+  could not see the AI role's grants, or "unverified" when `identity.sql` is missing or predates
+  this pack. Findings that did fire are kept. The Docker harness reproduces the empty capture
+  with a real low-privilege login and checks a member of the AI role stays clean; the Postgres
+  `identity.csv` golden gains three `auditor` rows.
+- **DC-01 and DC-02 titles** said validators had fired, but the classifier also raises them from a
+  Restricted or Confidential column or file name (with `probable` confidence). Now that quick-check
+  and the glossary print registry titles, the titles name both routes. The SARIF rule names derived
+  from them change accordingly; check IDs, fingerprints, and verdicts do not.
+- `quick-check/SKILL.md` said each lane had a 100-second budget; the script uses 35 seconds per
+  evaluator.
+- Stale docs: CONTRIBUTING's release section (it still said the version field was absent), the
+  ROADMAP status heading (v0.2.0), and a SPEC note pointing to where the later skills were approved.
+
 ## [0.12.0] — 2026-09-13
 
 DuckDB **posture** pack (coverage, sixth and last platform on the v1.x list). DuckDB has no roles and

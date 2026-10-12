@@ -23,7 +23,13 @@ in this plugin; Betterleaks is information-only in `/doctor` until an adapter am
 fixture parity; README Mission/Vision is Option A. Items below marked *approved amendment* or
 *v1* can start; items marked *proposed SPEC v2 change* cannot.
 
-## Where we are — v0.2.0 (July 2026)
+## Where we are now: v0.13.0 (October 2026)
+
+Nine skills, an onboarding and explanation pass (getting-started, glossary, troubleshooting), the v0.3 to v0.6 items below, and every v1.x warehouse pack have shipped (see the
+status note under v1.x and `CHANGELOG.md`). What remains open is SPEC v2 (IMPLEMENT and
+enforcement hooks), which needs the maintainer's explicit approval.
+
+## Where we started: v0.2.0 (July 2026)
 
 Five audit skills, 20 checks (SS-01..05, AC-01..06, DC-01..03, DB-01..06), Postgres and Snowflake
 SQL packs, org profile, token-boundary PII patterns, deterministic CI. Public since 2026-07-09;

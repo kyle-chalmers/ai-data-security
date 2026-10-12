@@ -2,7 +2,7 @@
 
 ## What the plan is built from
 
-`eval_grants.py` (tool version 4) emits a `plan_inputs` block next to its findings: the readable
+`eval_grants.py` (tool version 4 and later) emits a `plan_inputs` block next to its findings: the readable
 base tables, PII columns with tiers, write grants, inherited roles, server/file roles, PUBLIC
 grants, default-privilege schemas, stages/integrations, and (Snowflake) the user's TYPE and
 secondary-role setting. It is value-free (names only) and independent of the findings, so a

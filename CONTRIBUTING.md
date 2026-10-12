@@ -38,16 +38,17 @@ New work = new thin vertical slice with a runnable check, one atomic commit per 
 
 ## Releases
 
-The `version` field is intentionally absent while pre-release (git-SHA versioning). First public
-release requires the maintainer's explicit approval — this repo does not publish or submit to
-any marketplace without it — and this checklist:
+The version lives in one place: the semver `version` field in `.claude-plugin/plugin.json`
+(required since 0.1.0). The marketplace entry must not set one, because plugin.json would
+silently win; `dev/validate.sh` fails the build if it does. Tagging a release or submitting to
+any marketplace needs the maintainer's explicit approval. Each release:
 
-1. Add synced semver to plugin.json + CHANGELOG. (`dev/validate.sh` already validates both
-   manifests explicitly — do NOT switch it to `claude plugin validate . --strict`. A root
-   target resolves to `marketplace.json` in preference to `plugin.json` and never reads
-   skills, so that form passes even with a garbage `SKILL.md`. There is no flag to force
-   plugin mode.)
-2. Remove the README "While this repo is private" install note (it documents a private-phase
-   workaround only).
-3. Enable GitHub private vulnerability reporting on the repo (SECURITY.md points there).
-4. Final gitleaks tree + full-history self-scan and a fresh clean-machine install test.
+1. Bump `version` in plugin.json and add the matching `CHANGELOG.md` entry.
+2. Run `dev/validate.sh`. It validates both manifests by name. Do not switch it to
+   `claude plugin validate . --strict`: a root target resolves to `marketplace.json` in
+   preference to `plugin.json` and never reads skills, so that form passes even with a garbage
+   `SKILL.md`. There is no flag to force plugin mode.
+3. Run the gitleaks tree and full-history self-scan, and a clean-machine install test for any
+   release that changes install steps or `doctor`.
+4. Update the README skills table, `docs/getting-started.md`, and `docs/glossary.md` (regenerate
+   with `python3 dev/gen_glossary.py`) when a skill, check, or pack is added.
