@@ -467,6 +467,33 @@ python3 skills/db-access-audit/scripts/eval_grants.py \
 assert "pg with pii_columns missing: DB-07 not claimed; DB-06 says DB-07 was not assessed" \
   '([.findings[].check_id] | index("DB-07") == null) and (.unknowns | any(.reason | test("DB-07")))'
 
+step "db-access-audit postgres grant visibility (v0.13): an unprivileged auditor is UNKNOWN, never clean"
+PGV="$TMP/pg-visibility"; mkdir -p "$PGV"
+pg_eval_identity() { # $1 identity csv -> $TMP/out.json
+  python3 skills/db-access-audit/scripts/eval_grants.py \
+    --grants "$PGE/grants.csv" --pii "$PGE/pii_columns.csv" --views "$PGE/masked_views.csv" \
+    --settings "$PGE/audit_logging.csv" --identity "$1" --policies "$PGE/policy_attachment.csv" \
+    --external "$PGE/external_paths.csv" --audit-quality "$PGE/audit_quality.csv" \
+    --role ai_agent --principal-confirmed --emit-json "$TMP/out.json"
+}
+pg_eval_identity "$PGE/identity.csv"
+assert "pg goldens (superuser auditor): no grant-visibility DB-06" \
+  '[.unknowns[] | select(.reason | test("Grant visibility"))] | length == 0'
+sed -e 's/^auditor,rolsuper,true$/auditor,rolsuper,false/' -e 's/^auditor,sees_ai_role_grants,true$/auditor,sees_ai_role_grants,false/' \
+  -e 's/^auditor,user,postgres$/auditor,user,readonly_dba/' "$PGE/identity.csv" > "$PGV/identity-low.csv"
+pg_eval_identity "$PGV/identity-low.csv"
+assert "pg unprivileged auditor: DB-06 'Grant visibility partial' naming the auditor; real findings kept" \
+  '(.unknowns | any(.check_id == "DB-06" and (.reason | test("Grant visibility partial")) and (.reason | test("readonly_dba")))) and (.findings | any(.check_id == "DB-01"))'
+grep -v '^auditor,' "$PGE/identity.csv" > "$PGV/identity-old.csv"
+pg_eval_identity "$PGV/identity-old.csv"
+assert "pg identity from a pre-v0.13 pack: DB-06 asks for a re-capture" \
+  '.unknowns | any(.check_id == "DB-06" and (.reason | test("older than v0.13")))'
+python3 skills/db-access-audit/scripts/eval_grants.py \
+  --grants "$PGE/grants.csv" --pii "$PGE/pii_columns.csv" --views "$PGE/masked_views.csv" \
+  --settings "$PGE/audit_logging.csv" --role ai_agent --principal-confirmed --emit-json "$TMP/out.json"
+assert "pg without identity.sql: grant visibility is an UNKNOWN, never assumed" \
+  '.unknowns | any(.check_id == "DB-06" and (.reason | test("Grant visibility unverified")))'
+
 step "db-access-audit databricks pack (v0.7): recorded Unity Catalog CSVs -> module verdicts"
 DBX="tests/fixtures/databricks"
 python3 skills/db-access-audit/scripts/eval_grants.py --dialect databricks --recorded "$DBX" \
@@ -1032,6 +1059,11 @@ if [ "$(grep -c '^[123]\. ' "$TMP/qc.txt")" -eq 3 ]; then
   echo "OK: quick-check text output prints exactly three numbered verdict lines"
 else
   echo "FAIL: quick-check text output did not print three numbered verdict lines"; fail=1
+fi
+if grep -q '^What the codes mean' "$TMP/qc.txt" && grep -qE '^  AC-07 +Bash sandbox not enabled' "$TMP/qc.txt"; then
+  echo "OK: quick-check text output explains its check codes with registry titles"
+else
+  echo "FAIL: quick-check text output is missing the code key"; fail=1
 fi
 if [ "$QC_ELAPSED" -lt 120 ]; then
   echo "OK: quick-check finished in ${QC_ELAPSED}s (< 120s)"

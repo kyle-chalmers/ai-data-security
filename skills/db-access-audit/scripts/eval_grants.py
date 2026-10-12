@@ -638,6 +638,45 @@ def snowflake_v04_findings(args, confidence, unknowns, readable, parsed):
     return findings
 
 
+def postgres_grant_visibility(args, unknowns):
+    """Fail closed when the auditing login could not see the AI role's grants (v0.13).
+
+    information_schema.role_table_grants shows a grant only when one of the session's enabled roles
+    is its grantor or grantee. An auditor that is neither a superuser nor a member of the AI role
+    gets an empty or partial grants.csv, which reads exactly like "no grants". identity.sql records
+    the auditor's standing; without that record, an absence of grant findings is not a clean result.
+    Findings that DID fire are real either way, so they are kept."""
+    absent = ("an absence of DB-01/DB-02/DB-03/DB-07 findings is not a clean result, because "
+              "information_schema shows only grants where the auditing session's roles are the grantor "
+              "or grantee")
+    capture = (f"Capture the pack as '{args.role}' itself, a role that is a member of it, or a superuser, "
+               "and include identity.sql so the auditor's standing is recorded.")
+    ident = read_csv(args.identity) if args.identity else None
+    if ident is None or (ident and not REQUIRED_COLUMNS["identity"].issubset(ident[0].keys())):
+        unknowns.append({"check_id": "DB-06",
+                         "reason": f"Grant visibility unverified: identity.sql was not provided, so {absent}.",
+                         "action": capture})
+        return
+    auditor = {r["name"]: r["detail"] for r in ident if r["kind"] == "auditor"}
+    if not auditor:
+        unknowns.append({"check_id": "DB-06",
+                         "reason": "Grant visibility unverified: identity.sql came from a pack older than v0.13, "
+                                   f"which did not record the auditing login's standing, so {absent}.",
+                         "action": "Re-capture identity.sql with the current pack. " + capture})
+        return
+    truthy = ("t", "true", "True")
+    if auditor.get("rolsuper") in truthy or auditor.get("sees_ai_role_grants") in truthy:
+        return
+    who = auditor.get("user") or "the auditing login"
+    if auditor.get("sees_ai_role_grants") == "unknown":
+        why = f"role '{args.role}' does not exist as seen by '{who}'"
+    else:
+        why = f"'{who}' is not a superuser and not a member of '{args.role}', so it sees only grants it made itself"
+    unknowns.append({"check_id": "DB-06",
+                     "reason": f"Grant visibility partial: {why}; {absent}.",
+                     "action": capture})
+
+
 def postgres_v04_findings(args, confidence, unknowns, grants, pii):
     findings = []
     role = args.role
@@ -1170,6 +1209,7 @@ def main():
                 ))
 
         findings += postgres_v04_findings(args, confidence, unknowns, grants, pii)
+        postgres_grant_visibility(args, unknowns)
 
     if not args.principal_confirmed:
         unknowns.append({
@@ -1225,7 +1265,7 @@ def main():
         "schema_version": SCHEMA_VERSION,
         "skill": "db-access-audit",
         "target": args.role,
-        "tools": {"eval_grants": "4", "dialect": args.dialect},
+        "tools": {"eval_grants": "5", "dialect": args.dialect},
         "findings": active,
         "unknowns": unknowns,
         "suppressed": suppressed,

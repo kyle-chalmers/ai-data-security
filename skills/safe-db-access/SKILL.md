@@ -1,5 +1,5 @@
 ---
-description: Generate the least-privilege recipe for an AI database principal as reviewable SQL text — service identity, key vault, curated masked views, revoke-raw/grant-curated, audit trail, a validation script run as the AI role, and rollback — from a db-access-audit result. Postgres and Snowflake. Never connects, never executes, never writes a file; a human applies it and the audit is re-run.
+description: 'Turn a db-access-audit result into a least-privilege fix as reviewable SQL text. Renders a service identity, key vault, masked views, revoke-raw and grant-curated statements, an audit trail, a validation script, and rollback. Postgres and Snowflake only. Never connects, executes, or writes a file. Use when the user asks how to fix db-access-audit findings or wants a safe setup for an AI database role.'
 argument-hint: "--audit <eval.json> [--dialect postgres|snowflake] [--ai-role R] [--ai-user U] [--database D] [--curated-schema S] [--vault-schema S] [--edition enterprise|standard|unknown]"
 allowed-tools: "Bash(python3 *), Read, Glob"
 ---
@@ -11,15 +11,22 @@ for a human to review and execute. It MUST NOT write files, execute SQL, or chan
 or configuration. `scripts/plan.py` renders fixed templates with identifiers the audit captured and
 the script validated; you print what it prints. Applying the plan (roadmap v1.0) is not this skill.
 
+Narrate per [narration.md](${CLAUDE_PLUGIN_ROOT}/reference/narration.md): one line of what and why before
+each step, one line of result after, and say what each answer changes before asking anything.
+
 ## Steps
 
-1. **Get the audit JSON.** The plan is derived from a `db-access-audit` run that used
+1. **Check the dialect first.** Templates exist for Postgres and Snowflake only, and `plan.py`
+   refuses anything else. If the audit was another dialect, say so before collecting anything and
+   point at the remediation steps in that audit's findings.
+
+2. **Get the audit JSON.** The plan is derived from a `db-access-audit` run that used
    `--emit-json <file>` (live or `--recorded`). If the user has none, run
    `/ai-data-security:db-access-audit` first (for Postgres include `columns.sql`, which the pack
    now runs by default, and pass `--columns`); the JSON must carry `plan_inputs` (evaluator tool
    version 4+). Never construct plan inputs by hand.
 
-2. **Collect parameters** from `$ARGUMENTS` (defaults in brackets): `--ai-role` [audit target],
+3. **Collect parameters** from `$ARGUMENTS` (defaults in brackets): `--ai-role` [audit target],
    Snowflake `--ai-user` [audit identity], `--database` [the audit's single database],
    `--curated-schema` [curated/CURATED], `--vault-schema` [vault/VAULT], `--owner-role`
    [curated_owner/SYSADMIN], `--auditor-role` [GOVERNANCE_AUDITOR], `--user-type`
@@ -30,7 +37,7 @@ the script validated; you print what it prints. Applying the plan (roadmap v1.0)
    `^[A-Za-z_][A-Za-z0-9_]{0,127}$`; the script refuses anything else (exit 2) and renders nothing.
    Do not "fix" a refused value by quoting it: ask the user for a plain identifier.
 
-3. **Render**:
+4. **Render**:
    ```
    python3 "${CLAUDE_PLUGIN_ROOT}/skills/safe-db-access/scripts/plan.py" --audit <eval.json> [params]
    ```
@@ -38,7 +45,7 @@ the script validated; you print what it prints. Applying the plan (roadmap v1.0)
    statements. If the header says `INCOMPLETE` or lists `NOT RENDERED` items, say so first and
    explain what to capture or review; the plan must not be executed in that state.
 
-4. **Explain, briefly, in this order**: (a) the plan is text, nothing has changed; (b) who runs
+5. **Explain, briefly, in this order**: (a) the plan is text, nothing has changed; (b) who runs
    which section (sections 1–5 a DBA, section 6 the AI role itself); (c) hashed identifiers are
    pseudonymized, not anonymized, and the key stays in the vault schema the AI role cannot read;
    (d) after applying, re-run `db-access-audit` and compare before/after; (e) section 7 restores the
@@ -46,8 +53,11 @@ the script validated; you print what it prints. Applying the plan (roadmap v1.0)
    higher; `IS_AGENT_ACTIVATED()` needs the agent-identity user type. Snowflake support is
    fixture-validated only, so section 6 is not optional.
 
-5. **Never**: execute any statement, offer to execute it, write the plan to disk, or paste
+6. **Never**: execute any statement, offer to execute it, write the plan to disk, or paste
    credentials. If asked to "just apply it", decline and point at the SPEC amendment.
+
+**Next:** once a human has applied the plan, re-run `/ai-data-security:db-access-audit` with the
+same arguments and compare the findings before and after.
 
 If invoked by the `security-audit` orchestrator after a DB audit with findings, run with the
 orchestrator's JSON and return the plan fenced after the report.

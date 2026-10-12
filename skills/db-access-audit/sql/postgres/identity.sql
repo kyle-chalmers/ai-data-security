@@ -2,6 +2,10 @@
 -- (recursive, with INHERIT flags), objects it owns, and the access paths that widen it
 -- silently: grants inherited through member roles, PUBLIC grants, and default privileges.
 -- Rows are (kind, name, detail). Read-only. Run with: psql --csv -v ai_role='<role>' -f identity.sql
+-- v0.13: also records the AUDITOR's own standing (kind 'auditor'). information_schema shows a grant
+-- only when the session's roles are its grantor or grantee, so a login that is neither a superuser
+-- nor a member of the AI role sees an empty grants.csv that looks like "no grants". The evaluator
+-- reads these rows and fails closed to DB-06 instead of reporting a clean result.
 WITH RECURSIVE closure AS (
   SELECT r.oid AS role_oid, r.rolname, 0 AS depth, true AS inherits
   FROM pg_roles r WHERE r.rolname = :'ai_role'
@@ -56,4 +60,14 @@ SELECT 'default_acl',
 FROM pg_default_acl d, LATERAL aclexplode(d.defaclacl) a
 JOIN pg_roles gr ON gr.oid = a.grantee
 JOIN closure c ON c.rolname = gr.rolname
+UNION ALL
+SELECT 'auditor', 'user', current_user::text
+UNION ALL
+SELECT 'auditor', 'rolsuper', r.rolsuper::text FROM pg_roles r WHERE r.rolname = current_user
+UNION ALL
+-- pg_has_role(..., 'USAGE') is the same test information_schema.role_table_grants applies to the
+-- grantee; 'unknown' when the AI role does not exist (pg_has_role would raise on a missing name).
+SELECT 'auditor', 'sees_ai_role_grants',
+       COALESCE((SELECT pg_has_role(current_user, ar.oid, 'USAGE')::text
+                 FROM pg_roles ar WHERE ar.rolname = :'ai_role'), 'unknown')
 ORDER BY 1, 2, 3;

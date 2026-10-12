@@ -137,6 +137,46 @@ assert "unconfirmed principal: DB-06 unknown present" \
   '.unknowns | any(.check_id == "DB-06")'
 
 # ---------------------------------------------------------------------------------------------
+# v0.13 grant visibility: information_schema shows a grant only to its grantor or grantee's members,
+# so an auditor that is neither (and not a superuser) captures an EMPTY grants.csv. That must be a
+# DB-06 UNKNOWN, never a clean DB-01/DB-02. A member of the AI role sees everything and stays clean.
+# ---------------------------------------------------------------------------------------------
+echo "grant visibility: capturing as a low-privilege auditor and as a member of ai_agent..."
+docker exec -i "$NAME" psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
+CREATE ROLE low_auditor LOGIN;
+CREATE ROLE member_auditor LOGIN IN ROLE ai_agent;
+SQL
+for who in low_auditor member_auditor; do
+  VIS="$OUT/vis-$who"; mkdir -p "$VIS"
+  for name in grants identity; do
+    docker exec -i -e PGOPTIONS="-c default_transaction_read_only=on" "$NAME" \
+      psql -U "$who" -d postgres --csv -q -v ON_ERROR_STOP=1 -v ai_role='ai_agent' -f - \
+      < "$PACK/$name.sql" > "$VIS/$name.csv"
+  done
+  python3 skills/db-access-audit/scripts/eval_grants.py \
+    --grants "$VIS/grants.csv" --pii "$OUT/pii_columns.csv" \
+    --views "$OUT/masked_views.csv" --settings "$OUT/audit_logging.csv" \
+    --identity "$VIS/identity.csv" --policies "$OUT/policy_attachment.csv" \
+    --external "$OUT/external_paths.csv" --audit-quality "$OUT/audit_quality.csv" \
+    --role ai_agent --principal-confirmed --emit-json "$VIS/eval.json"
+done
+docker exec -i "$NAME" psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 -c 'DROP ROLE low_auditor; DROP ROLE member_auditor;' >/dev/null
+if [ "$(tail -n +2 "$OUT/vis-low_auditor/grants.csv" | grep -c . || true)" -eq 0 ]; then
+  echo "OK: low_auditor really does capture an empty grants.csv (the false-clean scenario exists)"
+else
+  echo "FAIL: low_auditor saw grants; the scenario under test did not reproduce"; fail=1
+fi
+EVAL_OUT="$OUT/vis-low_auditor/eval.json"
+assert "low-privilege auditor: DB-06 says grant visibility is partial and names the auditor" \
+  '.unknowns | any(.check_id == "DB-06" and (.reason | test("Grant visibility partial")) and (.reason | test("low_auditor")))'
+assert "low-privilege auditor: no DB-01/DB-02 claimed from the empty capture" \
+  '[.findings[] | select(.check_id == "DB-01" or .check_id == "DB-02")] | length == 0'
+EVAL_OUT="$OUT/vis-member_auditor/eval.json"
+assert "member of the AI role: grants visible (DB-01 fires), no grant-visibility DB-06" \
+  '(.findings | any(.check_id == "DB-01")) and ([.unknowns[] | select(.reason | test("Grant visibility"))] | length == 0)'
+EVAL_OUT="$OUT/eval.json"
+
+# ---------------------------------------------------------------------------------------------
 # v0.6 safe-db-access planner: render from the audit JSON, apply as the DBA (the harness plays the
 # human), validate AS the AI role, re-audit (findings gone), roll back, re-audit (findings back).
 # The planner itself only ever printed text.

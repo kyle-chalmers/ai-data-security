@@ -273,6 +273,27 @@
       "description": "DuckDB posture module: file mode/git exposure, read-write opening, process guards (capture-session view), cloud extensions + persistent secrets, remote/MotherDuck attachments, PII columns, no audit log",
       "check": "run-fixture-checks 'duckdb posture pack' step",
       "passes": true
+    },
+    {
+      "id": "S18.1-onboarding-docs",
+      "slice": "18",
+      "description": "getting-started (three lanes + per-pack auditor access), generated glossary covering every check ID, troubleshooting, annotated sample report, stale-doc fixes",
+      "check": "tests/test_skill_surface.py glossary steps + dev/gen_glossary.py --check",
+      "passes": true
+    },
+    {
+      "id": "S18.2-skill-surface",
+      "slice": "18",
+      "description": "narration contract, 'Use when' descriptions, Next: endings, db-access-audit front page under 80 lines with packs.md, quick-check code key",
+      "check": "dev/validate.sh 'skill surface' step + run-fixture-checks quick-check code-key assertion",
+      "passes": true
+    },
+    {
+      "id": "S18.3-pg-grant-visibility",
+      "slice": "18",
+      "description": "Postgres: record the auditor's standing in identity.sql; an auditor that cannot see the AI role's grants is DB-06 UNKNOWN, never a clean DB-01/02/03/07",
+      "check": "postgres-fixture-check.sh 'grant visibility' cases + run-fixture-checks 'postgres grant visibility' step",
+      "passes": true
     }
   ]
 }

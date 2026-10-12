@@ -27,6 +27,11 @@ Every finding cites a recognized standard. IMPLEMENT flows (human-gated fixes) a
 | `db-access-audit` | Read-only warehouse audit: over-broad grants for AI principals, unmasked PII columns, missing masked-view layer, missing audit logging. Postgres + Snowflake SQL packs | inline (human gate) |
 | `security-audit` | The ~30-minute end-to-end orchestrator: composes the four skills above into one prioritized, cited report | inline |
 
+This table is the original v1 scope and stays as approved. Later skills came through the sections
+below: `doctor` and `quick-check` (v0.3 additions), `dbt-governance-audit` (v0.5, under the
+2026-09-11 decisions), and `safe-db-access` (the approved 2026-09-11 amendment). The README
+skills table is the current list.
+
 ## Shared contracts (single-sourced in `reference/`)
 
 - **`finding-format.md`** — normative finding schema v1: severity `CRITICAL/HIGH/MEDIUM/LOW/INFO`

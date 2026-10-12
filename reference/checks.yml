@@ -185,7 +185,7 @@
     },
     "DC-01": {
       "skill": "data-classification",
-      "title": "Validated Restricted-tier content on disk (SSN/PAN validators fired)",
+      "title": "Restricted-tier file on disk (validated SSN, card, or IBAN content, or a Restricted column or file name)",
       "citations": [
         "nist-sp800-122",
         "owasp-llm02"
@@ -196,7 +196,7 @@
     },
     "DC-02": {
       "skill": "data-classification",
-      "title": "Confidential-tier content on disk (validated emails or PII columns)",
+      "title": "Confidential-tier file on disk (validated email, phone, or IP content, or a Confidential column or file name)",
       "citations": [
         "nist-sp800-122",
         "owasp-llm02"
