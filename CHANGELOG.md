@@ -10,9 +10,17 @@ an UNKNOWN (or the finding it should have raised), so a repo audited with 0.13.0
 UNKNOWNs or DBT-01 findings; nothing that fired before is removed or downgraded.
 
 ### Fixed
+- **Secrets: the scanned repo's own gitleaks settings could hide a secret.** gitleaks read the
+  target's `.gitleaks.toml`, so an allowlist there silently dropped findings, and inline
+  `gitleaks:allow` comments did the same. Every scan now passes the plugin's own config
+  (`skills/secrets-scanner/gitleaks/gitleaks.toml`, which extends gitleaks' defaults with no
+  allowlists) and `--ignore-gitleaks-allow`. A target `.gitleaksignore`, which gitleaks cannot be
+  told to skip, is listed entry by entry in the Suppressed appendix with an `SS-05` UNKNOWN.
+  quick-check now lists every suppressed finding instead of printing a count. Intentional skips
+  belong in `.ai-data-security-ignore`. A repo that relied on a gitleaks allowlist will see those
+  secrets reported.
 - **Secrets: a gitleaks run that died read as clean.** gitleaks exits 1 for leaks found and for
-  fatal errors (for example a malformed `.gitleaks.toml` in the target), and a fatal run writes no
-  report. `eval_secrets.py` read the missing report as zero findings, so quick-check printed "no
+  fatal errors (for example an unwritable report path), and a fatal run writes no report. `eval_secrets.py` read the missing report as zero findings, so quick-check printed "no
   secrets found on disk". A missing, empty, or non-list report, or a missing `--dir-report`, is
   now an `SS-05` UNKNOWN, and quick-check's secrets verdict says UNKNOWN. Evidence no longer
   claims a file is absent from git history when history was not scanned.
