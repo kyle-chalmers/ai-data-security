@@ -40,7 +40,9 @@ wrong one; add the new path here and to `permeval.py` together.
 YAML configs (Continue, Snowflake service config, Toolbox tools) are read by a shared stdlib
 YAML-subset reader (`scripts/yaml_subset.py`). Anything it does not support (anchors, aliases,
 tags, nested flow collections, multi-document files) makes that file an **UNKNOWN**, never a
-guess.
+guess. JSON configs are read as strict JSON: a file that exists but does not parse as a JSON
+object (a `//` comment, which VS Code's `mcp.json` allows, or a trailing comma) is an AC-03
+**UNKNOWN** naming the file, because its servers were not assessed.
 
 ## Why AC-10 reads the server's config, not the warehouse
 

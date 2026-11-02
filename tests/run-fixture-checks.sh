@@ -284,6 +284,15 @@ python3 "$PERMEVAL" --target "$BADMCP" --home tests/fixtures/ai-config-hardened/
 assert "missing and unparseable Snowflake configs -> two AC-10 unknowns, zero AC-10 findings, pinned packages -> no AC-09" \
   '([.unknowns[] | select(.check_id == "AC-10")] | length == 2) and ([.findings[] | select(.check_id == "AC-10" or .check_id == "AC-09")] | length == 0)'
 
+step "MCP config fail-closed: a JSON config that does not parse (VS Code JSONC comment, trailing comma) is UNKNOWN, never skipped"
+JSONC="$TMP/jsonc"; mkdir -p "$JSONC/.vscode" "$JSONC/.continue/mcpServers"
+# A write-capable Postgres MCP hidden behind one comment line: before the fix this config was silently skipped.
+printf '{\n  // analytics db\n  "servers": {"pg": {"command": "uvx", "args": ["postgres-mcp@0.3.0", "--access-mode=unrestricted"]}}\n}\n' > "$JSONC/.vscode/mcp.json"
+printf '{"mcpServers": [{"name": "x", "command": "npx", "args": ["-y", "pkg"]},]}\n' > "$JSONC/.continue/mcpServers/x.json"
+python3 "$PERMEVAL" --target "$JSONC" --home tests/fixtures/ai-config-hardened/home --emit-json "$TMP/out.json"
+assert "unparseable .vscode/mcp.json and .continue JSON -> one AC-03 UNKNOWN each, naming the file" \
+  '([.unknowns[] | select(.check_id == "AC-03" and (.reason | test("^\\.vscode/mcp\\.json exists but could not be parsed")))] | length == 1) and (.unknowns | any(.check_id == "AC-03" and (.reason | test("\\.continue/mcpServers/x\\.json"))))'
+
 step "AC-07 posture variants: filesystem.disabled re-fires MEDIUM; enabled without failIfUnavailable is INFO"
 FSOFF="$TMP/fs-off-home"; mkdir -p "$FSOFF/.claude"
 printf '{"sandbox": {"enabled": true, "filesystem": {"disabled": true}}}\n' > "$FSOFF/.claude/settings.json"
@@ -1032,6 +1041,8 @@ if python3 "$PERMEVAL_S" --target "$EHP" --home "$EHHOME" --emit-json "$TMP/out.
     '.unknowns | any(.check_id == "AC-06")'
   assert "permissions:null still produces the AC-01 finding (did not crash out)" \
     '.findings | any(.check_id == "AC-01")'
+  assert "a top-level JSON array in .cursor/mcp.json is an AC-03 UNKNOWN, not a silent skip" \
+    '.unknowns | any(.check_id == "AC-03" and (.reason | test("\\.cursor/mcp\\.json")))'
 else
   echo "FAIL: permeval crashed on hostile config shapes:"; cat "$TMP/err"; fail=1
 fi
