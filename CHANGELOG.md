@@ -3,6 +3,39 @@
 All notable changes to AI Data Security are documented here. This project follows
 [Semantic Versioning](https://semver.org). Dates are ISO-8601.
 
+## [Unreleased]
+
+Four places where the audit could stay silent on something it had not checked. Each now reports
+an UNKNOWN (or the finding it should have raised), so a repo audited with 0.13.0 can show new
+UNKNOWNs or DBT-01 findings; nothing that fired before is removed or downgraded.
+
+### Fixed
+- **Secrets: the scanned repo's own gitleaks settings could hide a secret.** gitleaks read the
+  target's `.gitleaks.toml`, so an allowlist there silently dropped findings, and inline
+  `gitleaks:allow` comments did the same. Every scan now passes the plugin's own config
+  (`skills/secrets-scanner/gitleaks/gitleaks.toml`, which extends gitleaks' defaults with no
+  allowlists) and `--ignore-gitleaks-allow`. A target `.gitleaksignore`, which gitleaks cannot be
+  told to skip, is listed entry by entry in the Suppressed appendix with an `SS-05` UNKNOWN.
+  quick-check now lists every suppressed finding instead of printing a count. Intentional skips
+  belong in `.ai-data-security-ignore`. A repo that relied on a gitleaks allowlist will see those
+  secrets reported.
+- **Secrets: a gitleaks run that died read as clean.** gitleaks exits 1 for leaks found and for
+  fatal errors (for example an unwritable report path), and a fatal run writes no report. `eval_secrets.py` read the missing report as zero findings, so quick-check printed "no
+  secrets found on disk". A missing, empty, or non-list report, or a missing `--dir-report`, is
+  now an `SS-05` UNKNOWN, and quick-check's secrets verdict says UNKNOWN. Evidence no longer
+  claims a file is absent from git history when history was not scanned.
+- **AI config: an MCP config that does not parse as JSON was skipped.** A `//` comment (allowed
+  in VS Code's `mcp.json`) or a trailing comma hid every server in the file from AC-03, AC-04,
+  AC-09 and AC-10. It is now an AC-03 UNKNOWN naming the file, as unparseable YAML already was.
+- **AI config: Toolbox tools with no fixed statement were ignored.** A `postgres-execute-sql`
+  tool runs whatever SQL the agent sends; it is now an AC-10 UNKNOWN instead of nothing.
+- **dbt: meta and tags under `config:` were not read.** A PII model tagged the dbt 1.10+ way was
+  invisible, so an exposure consuming it passed DBT-01 and its tagged columns were reported as
+  untagged. Both locations are now read for PII tags and masking declarations.
+- `security-audit` no longer tells Claude that SARIF suppressions carry their reason (the
+  exporter withholds it); `plugin.json` gains `homepage`; the DC-03 subdirectory test skips
+  under root like its sibling.
+
 ## [0.13.0] - 2026-10-11
 
 Onboarding and explanation pass, modelled on what made the StreamSnow plugin easy to pick up. No

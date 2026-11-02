@@ -77,6 +77,10 @@ Codes like `AC-07` and terms like "effective identity" are defined in the
   reads the result and writes the report, and cannot turn an UNKNOWN into a pass.
 - **No secret or data values.** gitleaks runs with `--redact`, evaluators carry paths and rule IDs
   only, and classification reports counts and column names.
+- **The plugin's scan rules, not the scanned repo's.** gitleaks runs with the plugin's own config,
+  so a `.gitleaks.toml` allowlist or an inline `gitleaks:allow` comment in the repo cannot hide a
+  secret. Intentional skips go in `.ai-data-security-ignore`, and every skip is listed in the
+  report ([how](skills/secrets-scanner/reference.md#whose-rules-the-scan-uses)).
 - **No passwords, no rows.** Warehouse queries return metadata only (grants, object and column
   names, settings), never rows from your tables. Warehouse audits use your already-signed-in CLI,
   show you exactly which read-only queries will run, and wait for your confirmation before

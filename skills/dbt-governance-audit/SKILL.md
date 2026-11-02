@@ -7,8 +7,8 @@ allowed-tools: "Bash(python3 *), Read, Glob"
 
 # dbt-governance-audit
 
-Audit the governance *declarations* of a dbt project: `meta` PII tags, `tags: [pii]`, exposures,
-and `packages.yml`. It runs on the repo alone (no `dbt` binary, no connection), so it multiplies
+Audit the governance *declarations* of a dbt project: `meta` PII tags, `tags: [pii]` (top level or
+under `config:`), exposures, and `packages.yml`. It runs on the repo alone (no `dbt` binary, no connection), so it multiplies
 across every warehouse the project targets. Findings follow
 [finding-format.md](${CLAUDE_PLUGIN_ROOT}/reference/finding-format.md); PII column patterns follow
 [four-tier-framework.md](${CLAUDE_PLUGIN_ROOT}/reference/four-tier-framework.md).

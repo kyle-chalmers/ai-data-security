@@ -65,14 +65,25 @@ def depends_on_model(entry):
     return positional[-1] if positional else None
 
 
+def _declared(node, key):
+    """Values of `key` (meta or tags) on a model, source table, or column, in both places dbt
+    reads them: top level, and under `config:` (where dbt 1.10+ expects meta and tags, and
+    where `config: {tags: [...]}` has long been valid for models)."""
+    if not isinstance(node, dict):
+        return []
+    config = node.get("config")
+    places = [node, config] if isinstance(config, dict) else [node]
+    return [p.get(key) for p in places if p.get(key) is not None]
+
+
 def declares_masking(node):
     """Explicit per-model masking declaration in meta (never a name heuristic)."""
-    meta = node.get("meta") if isinstance(node, dict) else None
-    if not isinstance(meta, dict):
-        return False
-    for k, v in meta.items():
-        if str(k).lower() in MASKED_META_KEYS and v not in (False, None, "", "false", "no"):
-            return True
+    for meta in _declared(node, "meta"):
+        if not isinstance(meta, dict):
+            continue
+        for k, v in meta.items():
+            if str(k).lower() in MASKED_META_KEYS and v not in (False, None, "", "false", "no"):
+                return True
     return False
 
 
@@ -129,18 +140,16 @@ NOT_PROOF = "A missing tag is a missing declaration, not proof of no PII; the YA
 
 
 def is_pii_tagged(node):
-    if not isinstance(node, dict):
-        return False
-    meta = node.get("meta")
-    if isinstance(meta, dict):
-        for k, v in meta.items():
-            if str(k).lower() in PII_META_KEYS and (v is True or (isinstance(v, str) and v.lower() not in ("false", "no", "public", "internal", ""))):
-                return True
-    tags = node.get("tags")
-    if isinstance(tags, list) and any(isinstance(tg, str) and any(w in tg.lower() for w in PII_TAG_WORDS) for tg in tags):
-        return True
-    if isinstance(tags, str) and any(w in tags.lower() for w in PII_TAG_WORDS):
-        return True
+    for meta in _declared(node, "meta"):
+        if isinstance(meta, dict):
+            for k, v in meta.items():
+                if str(k).lower() in PII_META_KEYS and (v is True or (isinstance(v, str) and v.lower() not in ("false", "no", "public", "internal", ""))):
+                    return True
+    for tags in _declared(node, "tags"):
+        if isinstance(tags, list) and any(isinstance(tg, str) and any(w in tg.lower() for w in PII_TAG_WORDS) for tg in tags):
+            return True
+        if isinstance(tags, str) and any(w in tags.lower() for w in PII_TAG_WORDS):
+            return True
     return False
 
 

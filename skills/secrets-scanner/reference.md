@@ -10,6 +10,35 @@ One scan without the other misses half the exposure story. The eval script merge
 `(file, rule)` and reports disk exposure and history exposure as separate findings because their
 remediations differ (deny rule + relocation vs. history rewrite + rotation).
 
+## Whose rules the scan uses
+
+The scan always uses the plugin's own gitleaks rules, never the scanned repo's. Both scans pass
+`--config skills/secrets-scanner/gitleaks/gitleaks.toml`, a config that extends gitleaks' default
+rules (`[extend] useDefault = true`) and adds no allowlists. So:
+
+| In the scanned repo | What happens |
+|---|---|
+| `.gitleaks.toml`, including any allowlist | Ignored. A secret it allowlists is still reported. The report header says the file was not used. |
+| An inline `gitleaks:allow` comment | Ignored (`--ignore-gitleaks-allow`). The secret on that line is an ordinary finding at full severity. |
+| `.gitleaksignore` | gitleaks always loads this file and cannot be told not to. Each entry is listed in the Suppressed appendix as skipped by the repo, and one `SS-05` UNKNOWN says those locations were not verified. |
+| `.ai-data-security-ignore` | Honored. This is the one place for intentional skips, and every one shows in the Suppressed appendix. |
+
+gitleaks' own built-in defaults (for example the documented AWS example key) still apply; they
+come with gitleaks, not with the scanned repo. A `.gitleaksignore` in the directory you run from is
+not loaded either: `--gitleaks-ignore-path` points at the plugin's `gitleaks/` directory, which
+holds none.
+
+### Adding an intentional skip
+
+1. Run the scan and copy the finding's `fingerprint` (for example `SS-03:.env:github-pat`).
+2. Add one line to `.ai-data-security-ignore` at the scanned repo's root:
+   `SS-03:.env:github-pat expires=2027-01-31 reason=local test token, rotated weekly`
+3. Re-run. The finding moves to the Suppressed appendix with its reason and expiry, and returns
+   to the main report once the date passes.
+
+Do not add allowlists to a `.gitleaks.toml` or a `.gitleaksignore` for this: the first is ignored,
+and the second leaves a location the audit cannot verify.
+
 ## The exposure matrix
 
 | Dimension | Question | Common misconception corrected |

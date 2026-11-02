@@ -40,7 +40,9 @@ wrong one; add the new path here and to `permeval.py` together.
 YAML configs (Continue, Snowflake service config, Toolbox tools) are read by a shared stdlib
 YAML-subset reader (`scripts/yaml_subset.py`). Anything it does not support (anchors, aliases,
 tags, nested flow collections, multi-document files) makes that file an **UNKNOWN**, never a
-guess.
+guess. JSON configs are read as strict JSON: a file that exists but does not parse as a JSON
+object (a `//` comment, which VS Code's `mcp.json` allows, or a trailing comma) is an AC-03
+**UNKNOWN** naming the file, because its servers were not assessed.
 
 ## Why AC-10 reads the server's config, not the warehouse
 
@@ -49,7 +51,9 @@ Warehouse MCP servers run with whatever identity they are given; the warehouse a
 question: does the server's own configuration allow writes at all? Only Postgres MCP Pro has a
 named switch (`--access-mode=restricted`). Snowflake-Labs/mcp uses a per-statement-type list in a
 YAML passed with `--service-config-file` (no fixed path, so the check follows the argument), and
-Toolbox's capability is exactly the SQL in each `tools.yaml` tool. Databricks Labs' server has no
+Toolbox's capability is exactly the SQL in each `tools.yaml` tool; a tool with no fixed
+`statement` (such as `postgres-execute-sql`, which runs whatever SQL the agent sends) is an AC-10
+UNKNOWN, never a read. Databricks Labs' server has no
 write control, so AC-10 reports INFO and defers to DB-01. A config that cannot be found or parsed
 is an AC-10 UNKNOWN: "we could not see the switch" is never "the switch is off".
 

@@ -1,0 +1,14 @@
+# ai-data-security's own gitleaks config. Every scan passes it with --config, so the scanned
+# repo's .gitleaks.toml (and any allowlist in it) is never read.
+#
+# It extends gitleaks' default rules rather than copying them, so new upstream rules arrive with
+# each gitleaks release. It adds no allowlists, paths, or rules of its own; gitleaks' built-in
+# defaults still apply. An intentional skip belongs in the scanned repo's .ai-data-security-ignore,
+# keyed by the finding's fingerprint, where it is always listed in the report's Suppressed appendix.
+#
+# This directory doubles as --gitleaks-ignore-path, so it must never contain a .gitleaksignore.
+
+title = "ai-data-security"
+
+[extend]
+useDefault = true
