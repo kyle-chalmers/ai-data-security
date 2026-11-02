@@ -109,6 +109,12 @@ def secrets_lane(target, tmp, unknowns):
         unknowns.append({"check_id": "SS-05", "reason": f"eval_secrets: {err}",
                          "action": "Run /ai-data-security:secrets-scanner."})
         return None, "UNKNOWN"
+    # gitleaks exits 1 for a fatal error as well as for leaks found. eval_secrets reports a missing
+    # or malformed report as SS-05; the verdict line must then say UNKNOWN, not "no secrets found".
+    failed = [u for u in data.get("unknowns", []) if u.get("check_id") == "SS-05"]
+    if failed:
+        unknowns.extend(dict(u, skill="secrets-scanner") for u in failed)
+        return None, "UNKNOWN"
     return data, "ran"
 
 

@@ -53,15 +53,42 @@ SUBPROCESS_CAVEAT = (
 )
 
 
-def load_report(path):
-    if not path or not os.path.exists(path):
-        return []
+def load_report(path, scan, unknowns):
+    """Return the findings list from one gitleaks JSON report, or None when there is none to use.
+
+    A report that was asked for but is missing, empty, or not a JSON list of objects means the
+    scan did not finish. gitleaks exits 1 both when it finds leaks and when it dies (a malformed
+    .gitleaks.toml in the target, an unreadable path, an unwritable report path), and only a scan
+    that finishes writes the file, so "no report" must never read as "no secrets". Each unusable
+    report becomes an SS-05 UNKNOWN. No path at all means the caller chose not to run that scan
+    (history on a non-git target), which is not a failure."""
+    if not path:
+        return None
+    name = os.path.basename(path)
+    why = None
+    data = None
     try:
         with open(path, encoding="utf-8") as f:
             content = f.read().strip()
-        return json.loads(content) if content else []
-    except (json.JSONDecodeError, OSError) as e:
-        raise SystemExit(f"eval_secrets: unreadable gitleaks report {path}: {e}")
+        data = json.loads(content) if content else None
+        if data is None:
+            why = "is empty"
+        elif not isinstance(data, list) or not all(isinstance(i, dict) for i in data):
+            why = "is not a gitleaks JSON findings list"
+    except FileNotFoundError:
+        why = "was not written"
+    except (ValueError, OSError) as e:
+        why = f"could not be read ({e.__class__.__name__})"
+    if why is None:
+        return data
+    unknowns.append({
+        "check_id": "SS-05",
+        "reason": f"gitleaks {scan} report '{name}' {why}, so that scan did not finish. gitleaks "
+                  "exits 1 for a fatal error as well as for leaks found; this is not a clean result.",
+        "action": f"Re-run `gitleaks {scan}` by hand and read its stderr (a malformed .gitleaks.toml "
+                  "in the target is a common cause), then re-run the audit.",
+    })
+    return None
 
 
 def load_citations():
@@ -201,9 +228,11 @@ def _relpath(file, target):
     return file
 
 
-def build_findings(history, worktree, target):
+def build_findings(history, worktree, target, history_scanned=True):
     """One finding per secret per location class: a disk finding (SS-02/SS-03) and/or a
-    history finding (SS-01/SS-04). The exposure matrix is attached to each."""
+    history finding (SS-01/SS-04). The exposure matrix is attached to each. When history was
+    not scanned (quick-check, a non-git target, or a failed history scan), the evidence does not
+    claim that a file is absent from history."""
     denies = deny_patterns(target)
     keys = {}
     for item in history:
@@ -241,7 +270,7 @@ def build_findings(history, worktree, target):
                 if agent_readable
                 else f"Secret on disk (deny rule covers it): {file} ({rule})"
             )
-            gitignored = not in_history
+            gitignored = history_scanned and not in_history
             evidence = (
                 f"gitleaks dir detected rule '{rule}' in {file} (value redacted). "
                 + ("File is not in git history — .gitignore does not protect files on disk. " if gitignored else "")
@@ -332,9 +361,22 @@ def main():
     checks = load_checks()
     citations = load_citations()
 
-    findings = build_findings(
-        load_report(args.history_report), load_report(args.dir_report), target
-    )
+    unknowns = []
+    history = load_report(args.history_report, "git", unknowns)
+    if args.dir_report:
+        worktree = load_report(args.dir_report, "dir", unknowns)
+    else:
+        # The working-tree scan is the one that sees gitignored files on disk; every caller runs
+        # it, so its absence means the disk lane never ran.
+        worktree = None
+        unknowns.append({
+            "check_id": "SS-05",
+            "reason": "no gitleaks dir report was supplied, so secrets on disk were not scanned.",
+            "action": "Run `gitleaks dir --redact --report-format json --report-path <file> <target>` "
+                      "and pass it as --dir-report.",
+        })
+    findings = build_findings(history or [], worktree or [], target,
+                              history_scanned=history is not None)
 
     for finding in findings:
         keys = checks[finding["check_id"]]["citations"]
@@ -365,7 +407,7 @@ def main():
         "target": target,
         "tools": {"gitleaks": args.gitleaks_version},
         "findings": active,
-        "unknowns": [],
+        "unknowns": unknowns,
         "suppressed": suppressed,
     }
     output = json.dumps(result, indent=2)

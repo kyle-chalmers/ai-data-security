@@ -100,6 +100,31 @@ else
 fi
 rm -rf "$SARTMP"
 
+step "eval_secrets fail-closed: a missing, empty, or non-list gitleaks report is SS-05 UNKNOWN, never zero findings"
+# No gitleaks needed: these are the reports a fatal gitleaks run leaves behind (exit 1, no file).
+ESTMP="$(mktemp -d)"
+ES="skills/secrets-scanner/scripts/eval_secrets.py"
+printf '[]\n' > "$ESTMP/ok.json"; : > "$ESTMP/empty.json"; printf '{"leaks": []}\n' > "$ESTMP/obj.json"
+es_check() { # $1 description, $2 jq expression, rest: eval_secrets args
+  local desc="$1" expr="$2"; shift 2
+  if python3 "$ES" --target "$ESTMP" --emit-json "$ESTMP/out.json" "$@" && jq -e "$expr" "$ESTMP/out.json" >/dev/null; then
+    echo "OK: $desc"
+  else
+    echo "FAIL: $desc"; fail=1
+  fi
+}
+es_check "dir report never written -> SS-05, zero findings" \
+  '(.findings == []) and ([.unknowns[] | select(.check_id == "SS-05" and (.reason | test("gitleaks dir report .missing.json. was not written")))] | length == 1)' \
+  --dir-report "$ESTMP/missing.json"
+es_check "empty dir report -> SS-05" '.unknowns | any(.check_id == "SS-05" and (.reason | test("is empty")))' --dir-report "$ESTMP/empty.json"
+es_check "non-list dir report -> SS-05 (no crash)" '.unknowns | any(.check_id == "SS-05" and (.reason | test("not a gitleaks JSON findings list")))' --dir-report "$ESTMP/obj.json"
+es_check "valid dir report + missing history report -> exactly one SS-05, for git" \
+  '[.unknowns[] | select(.check_id == "SS-05")] | (length == 1) and (.[0].reason | test("gitleaks git report"))' \
+  --dir-report "$ESTMP/ok.json" --history-report "$ESTMP/missing.json"
+es_check "no --dir-report at all -> SS-05 (the disk lane never ran)" '.unknowns | any(.check_id == "SS-05" and (.reason | test("no gitleaks dir report")))'
+es_check "valid dir report, history deliberately not run -> no unknowns" '.unknowns == []' --dir-report "$ESTMP/ok.json"
+rm -rf "$ESTMP"
+
 if ! command -v gitleaks >/dev/null 2>&1; then
   echo "SKIP: gitleaks not installed — secrets fixture assertions skipped (install: brew install gitleaks)"
   exit "$fail"
@@ -1081,6 +1106,15 @@ assert "quick-check: verdict line 2 says the deny-rule finding is suppressed" \
   '.verdicts[1] | test("deny-rule finding suppressed") and (test("deny rules present") | not)'
 assert "quick-check: SS-01 (history not scanned) is listed even when the secrets lane ran" \
   '.unknowns | any(.check_id == "SS-01")'
+
+step "quick-check: gitleaks dying with exit 1 (malformed .gitleaks.toml) is UNKNOWN, never 'no secrets found'"
+# gitleaks exits 1 for leaks AND for fatal errors, and a fatal error writes no report. The combined
+# repo holds an agent-readable .env secret, so a clean verdict here would be a silent false pass.
+printf '[allowlist\n' > "$COMBINED/.gitleaks.toml"
+python3 skills/quick-check/scripts/quick_check.py --target "$COMBINED" --home tests/fixtures/ai-config/home --emit-json "$TMP/out.json" >/dev/null
+rm -f "$COMBINED/.gitleaks.toml"
+assert "quick-check: secrets verdict is UNKNOWN with an SS-05 naming the unwritten report" \
+  '(.verdicts[0] | test("UNKNOWN") and (test("no secrets found") | not)) and (.tools.lanes.secrets == "UNKNOWN") and (.unknowns | any(.check_id == "SS-05" and (.reason | test("was not written"))))'
 cp "$TMP/qc0.json" "$TMP/out.json"
 
 step "SARIF export: valid 2.1.0 shape, one rule per check, unknowns as notifications, no values"
