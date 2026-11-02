@@ -53,15 +53,43 @@ SUBPROCESS_CAVEAT = (
 )
 
 
-def load_report(path):
-    if not path or not os.path.exists(path):
-        return []
+def load_report(path, scan, unknowns):
+    """Return the findings list from one gitleaks JSON report, or None when there is none to use.
+
+    A report that was asked for but is missing, empty, or not a JSON list of objects means the
+    scan did not finish. gitleaks exits 1 both when it finds leaks and when it dies (an unreadable
+    path, an unwritable report path, a missing --config file), and only a scan
+    that finishes writes the file, so "no report" must never read as "no secrets". Each unusable
+    report becomes an SS-05 UNKNOWN. No path at all means the caller chose not to run that scan
+    (history on a non-git target), which is not a failure."""
+    if not path:
+        return None
+    name = os.path.basename(path)
+    why = None
+    data = None
     try:
         with open(path, encoding="utf-8") as f:
             content = f.read().strip()
-        return json.loads(content) if content else []
-    except (json.JSONDecodeError, OSError) as e:
-        raise SystemExit(f"eval_secrets: unreadable gitleaks report {path}: {e}")
+        data = json.loads(content) if content else None
+        if data is None:
+            why = "is empty"
+        elif not isinstance(data, list) or not all(isinstance(i, dict) for i in data):
+            why = "is not a gitleaks JSON findings list"
+    except FileNotFoundError:
+        why = "was not written"
+    except (ValueError, OSError) as e:
+        why = f"could not be read ({e.__class__.__name__})"
+    if why is None:
+        return data
+    unknowns.append({
+        "check_id": "SS-05",
+        "scan_failed": True,
+        "reason": f"gitleaks {scan} report '{name}' {why}, so that scan did not finish. gitleaks "
+                  "exits 1 for a fatal error as well as for leaks found; this is not a clean result.",
+        "action": f"Re-run `gitleaks {scan}` by hand and read its stderr (an unreadable path or an "
+                  "unwritable report path are common causes), then re-run the audit.",
+    })
+    return None
 
 
 def load_citations():
@@ -191,6 +219,58 @@ def load_suppressions(target):
     return entries
 
 
+def load_target_gitleaksignore(target, unknowns):
+    """List every entry in the target's .gitleaksignore as a skipped finding.
+
+    gitleaks always loads <source>/.gitleaksignore and has no flag to turn that off (verified
+    against 8.30.1, cmd/root.go), so the scanned repo can still drop findings this way even though
+    the plugin passes its own --config. The plugin cannot see what was dropped, so each entry is
+    listed in the Suppressed appendix and one SS-05 UNKNOWN says those locations were not verified."""
+    path = os.path.join(target, ".gitleaksignore")
+    if not os.path.isfile(path):
+        return []
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            entries = [ln.strip() for ln in f if ln.strip() and not ln.strip().startswith("#")]
+    except OSError:
+        entries = None
+    if entries is None:
+        unknowns.append({
+            "check_id": "SS-05",
+            "scan_failed": False,
+            "reason": "the scanned repo has a .gitleaksignore that could not be read; gitleaks loads "
+                      "it anyway, so findings it names were skipped without being listed.",
+            "action": "Make .gitleaksignore readable, or move intentional skips to "
+                      ".ai-data-security-ignore, then re-run.",
+        })
+        return []
+    if not entries:
+        return []
+    unknowns.append({
+        "check_id": "SS-05",
+        "scan_failed": False,
+        "reason": f"the scanned repo's .gitleaksignore lists {len(entries)} finding(s) that gitleaks "
+                  "skipped; gitleaks cannot be told to ignore that file, so those locations were "
+                  "not verified (each is listed in the Suppressed appendix).",
+        "action": "Move intentional skips to .ai-data-security-ignore (fingerprint plus reason) and "
+                  "delete .gitleaksignore, then re-run so every location is scanned.",
+    })
+    return [
+        {
+            "check_id": "SS-05",
+            "fingerprint": entry,
+            "file": ".gitleaksignore",
+            "title": "Skipped by the scanned repo's .gitleaksignore (not verified)",
+            "severity": "UNKNOWN",
+            "source": ".gitleaksignore",
+            "reason": "gitleaks skipped this at the scanned repo's request; the plugin cannot see "
+                      "what it was.",
+            "expires": None,
+        }
+        for entry in entries
+    ]
+
+
 def _relpath(file, target):
     """Normalize a gitleaks File field to target-relative: `gitleaks git` emits repo-relative
     paths, but `gitleaks dir <path>` emits absolute paths (verified against 8.30.1)."""
@@ -201,9 +281,11 @@ def _relpath(file, target):
     return file
 
 
-def build_findings(history, worktree, target):
+def build_findings(history, worktree, target, history_scanned=True):
     """One finding per secret per location class: a disk finding (SS-02/SS-03) and/or a
-    history finding (SS-01/SS-04). The exposure matrix is attached to each."""
+    history finding (SS-01/SS-04). The exposure matrix is attached to each. When history was
+    not scanned (quick-check, a non-git target, or a failed history scan), the evidence does not
+    claim that a file is absent from history."""
     denies = deny_patterns(target)
     keys = {}
     for item in history:
@@ -241,7 +323,7 @@ def build_findings(history, worktree, target):
                 if agent_readable
                 else f"Secret on disk (deny rule covers it): {file} ({rule})"
             )
-            gitignored = not in_history
+            gitignored = history_scanned and not in_history
             evidence = (
                 f"gitleaks dir detected rule '{rule}' in {file} (value redacted). "
                 + ("File is not in git history — .gitignore does not protect files on disk. " if gitignored else "")
@@ -332,9 +414,23 @@ def main():
     checks = load_checks()
     citations = load_citations()
 
-    findings = build_findings(
-        load_report(args.history_report), load_report(args.dir_report), target
-    )
+    unknowns = []
+    history = load_report(args.history_report, "git", unknowns)
+    if args.dir_report:
+        worktree = load_report(args.dir_report, "dir", unknowns)
+    else:
+        # The working-tree scan is the one that sees gitignored files on disk; every caller runs
+        # it, so its absence means the disk lane never ran.
+        worktree = None
+        unknowns.append({
+            "check_id": "SS-05",
+            "scan_failed": True,
+            "reason": "no gitleaks dir report was supplied, so secrets on disk were not scanned.",
+            "action": "Run the `gitleaks dir` command from the secrets-scanner skill (it passes the "
+                      "plugin's --config) and pass its report as --dir-report.",
+        })
+    findings = build_findings(history or [], worktree or [], target,
+                              history_scanned=history is not None)
 
     for finding in findings:
         keys = checks[finding["check_id"]]["citations"]
@@ -347,6 +443,7 @@ def main():
         if entry and not entry["expired"]:
             suppressed.append(
                 {
+                    "source": ".ai-data-security-ignore",
                     "fingerprint": finding["fingerprint"],
                     "title": finding["title"],
                     "severity": finding["severity"],
@@ -358,14 +455,23 @@ def main():
             if entry and entry["expired"]:
                 finding["evidence"] += " (A suppression for this finding expired.)"
             active.append(finding)
+    suppressed.extend(load_target_gitleaksignore(target, unknowns))
 
     result = {
         "schema_version": SCHEMA_VERSION,
         "skill": "secrets-scanner",
         "target": target,
         "tools": {"gitleaks": args.gitleaks_version},
+        # Callers run gitleaks with the plugin's --config and --ignore-gitleaks-allow, so the
+        # target's .gitleaks.toml is never read and inline gitleaks:allow comments do not hide
+        # findings. Recorded here so the report can say whose rules were used.
+        "scan_config": {
+            "rules": "plugin",
+            "target_gitleaks_toml_ignored": os.path.isfile(os.path.join(target, ".gitleaks.toml")),
+            "inline_allow_comments": "reported",
+        },
         "findings": active,
-        "unknowns": [],
+        "unknowns": unknowns,
         "suppressed": suppressed,
     }
     output = json.dumps(result, indent=2)

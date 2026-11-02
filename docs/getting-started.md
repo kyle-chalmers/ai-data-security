@@ -173,7 +173,8 @@ To include the warehouse in the full audit, pass the same arguments to `security
 
 - **A finding you have accepted?** Add its fingerprint to `.ai-data-security-ignore` with a
   reason and an expiry date. It moves to the Suppressed appendix and comes back when the date
-  passes.
+  passes. This is the only way to skip a secret: the scan uses the plugin's gitleaks rules, so the
+  repo's own `.gitleaks.toml` allowlists and `gitleaks:allow` comments are ignored.
 - **Your own sensitive column names?** Add them to `.ai-data-security.yml`
   ([reference/org-config.md](../reference/org-config.md)).
 - **Want results in GitHub?** `security-audit . --sarif results.sarif` writes a file Code

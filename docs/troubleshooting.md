@@ -138,6 +138,16 @@ re-run db-access-audit; it is read-only and safe to repeat.
 finding returns to the main report flagged as previously suppressed.
 **Fix:** Fix it, or renew the entry with a new date and a reason.
 
+### My `.gitleaks.toml` allowlist or `gitleaks:allow` comment is ignored
+
+**Cause:** By design. The scan uses the plugin's own gitleaks rules so that nothing in the scanned
+repo can hide a secret without it showing in the report. A `.gitleaksignore` in the repo still
+takes effect (gitleaks has no way to turn it off), so each of its entries is listed as skipped
+with an `SS-05` UNKNOWN.
+**Fix:** Move the skip to `.ai-data-security-ignore` as `<fingerprint> expires=YYYY-MM-DD
+reason=...`. It then appears in the Suppressed appendix instead of disappearing. See
+[whose rules the scan uses](../skills/secrets-scanner/reference.md#whose-rules-the-scan-uses).
+
 ### "extensions were NOT applied" in a report
 
 **Cause:** `.ai-data-security.yml` could not be parsed, so your extra column names were ignored

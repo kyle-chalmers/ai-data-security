@@ -77,7 +77,7 @@ def location_for(finding, checks):
     return [{"physicalLocation": {"artifactLocation": {"uri": _uri(rel or obj), "uriBaseId": "TARGET"}}}]
 
 
-def result_for(finding, checks, suppressed_reason=None):
+def result_for(finding, checks, suppressed_reason=None, suppressed_source=".ai-data-security-ignore"):
     sev = finding.get("severity", "INFO")
     message = finding.get("title", finding.get("check_id", ""))
     evidence = finding.get("evidence")
@@ -105,8 +105,11 @@ def result_for(finding, checks, suppressed_reason=None):
         res["properties"]["exposure"] = finding["exposure"]
     if suppressed_reason is not None:
         # The reason text is user-written and unredacted; never copy it into a shareable artifact.
-        res["suppressions"] = [{"kind": "external", "status": "accepted",
-                                "justification": "suppressed via .ai-data-security-ignore (reason withheld; see that file)"}]
+        # A target .gitleaksignore entry is a location the audit could not verify, not an accepted
+        # risk, so it stays under review.
+        status = "underReview" if suppressed_source == ".gitleaksignore" else "accepted"
+        res["suppressions"] = [{"kind": "external", "status": status,
+                                "justification": f"suppressed via {suppressed_source} (reason withheld; see that file)"}]
     return res
 
 
@@ -131,11 +134,15 @@ def convert(inputs, checks, citations, tool_version):
             # fingerprint = <check_id>:<object>:<qualifier>; the object may itself contain ':'.
             check_id, _, rest = fp.partition(":")
             obj, _, _qualifier = rest.rpartition(":")
-            check_id = check_id or "UNKNOWN"
+            # Entries that are not plugin fingerprints (a target .gitleaksignore line) carry their
+            # check_id and file explicitly.
+            check_id = str(s.get("check_id") or check_id or "UNKNOWN")
+            obj = str(s.get("file") or obj)
             pseudo = {"check_id": check_id, "title": s.get("title", f"suppressed {check_id}"),
                       "severity": s.get("severity", "INFO"), "fingerprint": fp,
                       "file": obj, "skill": blob.get("skill")}
-            results.append(result_for(pseudo, checks, suppressed_reason=""))
+            results.append(result_for(pseudo, checks, suppressed_reason="",
+                                      suppressed_source=str(s.get("source") or ".ai-data-security-ignore")))
             rules_used[check_id] = True
         for u in blob.get("unknowns", []) if isinstance(blob.get("unknowns"), list) else []:
             if not isinstance(u, dict):

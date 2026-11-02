@@ -381,6 +381,14 @@ def _yaml_server_list(path, label, unknowns):
     return out
 
 
+def _unparsed_json_config(label, unknowns):
+    unknowns.append({"check_id": "AC-03",
+                     "reason": f"{label} exists but could not be parsed as a JSON object (strict JSON: no comments "
+                               "or trailing commas); its MCP servers were not assessed for AC-03, AC-04, AC-09 or AC-10.",
+                     "action": "Remove comments and trailing commas (or fix the file) and re-run, or review its servers "
+                               "by hand for credential literals, trust:true, unpinned packages and write access."})
+
+
 def check_mcp_configs(target, home, findings, unknowns):
     """AC-03/AC-04 across the known MCP config locations (project scope + home scope)."""
     candidates = [
@@ -412,13 +420,18 @@ def check_mcp_configs(target, home, findings, unknowns):
     ]
     inventory = []  # (label, name, spec) for AC-08 / AC-09 / AC-10
     for path, label, key in candidates:
+        if not os.path.isfile(path):
+            continue
         data = read_json(path)
-        # A config whose top-level JSON is an array/scalar (not an object) has no mcpServers
-        # to scan — skip it rather than crash on .get().
-        if isinstance(data, dict):
-            servers = _servers_at(data, key.split("|"))
-            _scan_mcp_servers(servers, label, findings)
-            inventory += [(label, n, s) for n, s in servers.items() if isinstance(s, dict)]
+        # A config that exists but is not a JSON object (a trailing comma, a // comment, which
+        # VS Code's mcp.json allows, an array, unreadable bytes) has servers we cannot see.
+        # Report it rather than skip it: an unread config is not a clean one.
+        if not isinstance(data, dict):
+            _unparsed_json_config(label, unknowns)
+            continue
+        servers = _servers_at(data, key.split("|"))
+        _scan_mcp_servers(servers, label, findings)
+        inventory += [(label, n, s) for n, s in servers.items() if isinstance(s, dict)]
 
     # Continue (current): ~/.continue/config.yaml plus one YAML/JSON file per server under
     # .continue/mcpServers/ (workspace and home).
@@ -434,7 +447,10 @@ def check_mcp_configs(target, home, findings, unknowns):
             continue
         if path.endswith(".json"):
             data = read_json(path)
-            servers = _servers_at(data, ["mcpServers"]) if isinstance(data, dict) else {}
+            if not isinstance(data, dict):
+                _unparsed_json_config(label, unknowns)
+                continue
+            servers = _servers_at(data, ["mcpServers"])
             if not servers and isinstance(data, dict) and isinstance(data.get("mcpServers"), list):
                 servers = {str(s.get("name") or f"server{i}"): s for i, s in enumerate(data["mcpServers"]) if isinstance(s, dict)}
         else:
@@ -675,6 +691,18 @@ def check_warehouse_mcp(inventory, target, findings, unknowns):
                 continue
             classes = {tn: classify_statement(tspec["statement"]) for tn, tspec in tools.items()
                        if isinstance(tspec, dict) and isinstance(tspec.get("statement"), str)}
+            # A tool with no fixed `statement` cannot be classified from the file. Toolbox's
+            # *-execute-sql kinds are the dangerous case: they run whatever SQL the agent sends.
+            no_statement = sorted(str(tn) for tn in tools if tn not in classes)
+            if no_statement:
+                unknowns.append({
+                    "check_id": "AC-10",
+                    "reason": f"Toolbox MCP server '{name}' ({label}): {len(no_statement)} tool(s) have no fixed statement "
+                              f"to classify ({', '.join(no_statement)}). A tool such as postgres-execute-sql runs whatever "
+                              "SQL the agent sends, so it can write whatever the connected identity can.",
+                    "action": "Remove free-form SQL tools from an agent's toolbox, or connect the source as an identity "
+                              "with no write grants (db-access-audit DB-01).",
+                })
             writers = sorted(tn for tn, c in classes.items() if c == "write")
             unclassified = sorted(tn for tn, c in classes.items() if c == "unclassified")
             if unclassified:

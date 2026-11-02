@@ -100,6 +100,31 @@ else
 fi
 rm -rf "$SARTMP"
 
+step "eval_secrets fail-closed: a missing, empty, or non-list gitleaks report is SS-05 UNKNOWN, never zero findings"
+# No gitleaks needed: these are the reports a fatal gitleaks run leaves behind (exit 1, no file).
+ESTMP="$(mktemp -d)"
+ES="skills/secrets-scanner/scripts/eval_secrets.py"
+printf '[]\n' > "$ESTMP/ok.json"; : > "$ESTMP/empty.json"; printf '{"leaks": []}\n' > "$ESTMP/obj.json"
+es_check() { # $1 description, $2 jq expression, rest: eval_secrets args
+  local desc="$1" expr="$2"; shift 2
+  if python3 "$ES" --target "$ESTMP" --emit-json "$ESTMP/out.json" "$@" && jq -e "$expr" "$ESTMP/out.json" >/dev/null; then
+    echo "OK: $desc"
+  else
+    echo "FAIL: $desc"; fail=1
+  fi
+}
+es_check "dir report never written -> SS-05, zero findings" \
+  '(.findings == []) and ([.unknowns[] | select(.check_id == "SS-05" and (.reason | test("gitleaks dir report .missing.json. was not written")))] | length == 1)' \
+  --dir-report "$ESTMP/missing.json"
+es_check "empty dir report -> SS-05" '.unknowns | any(.check_id == "SS-05" and (.reason | test("is empty")))' --dir-report "$ESTMP/empty.json"
+es_check "non-list dir report -> SS-05 (no crash)" '.unknowns | any(.check_id == "SS-05" and (.reason | test("not a gitleaks JSON findings list")))' --dir-report "$ESTMP/obj.json"
+es_check "valid dir report + missing history report -> exactly one SS-05, for git" \
+  '[.unknowns[] | select(.check_id == "SS-05")] | (length == 1) and (.[0].reason | test("gitleaks git report"))' \
+  --dir-report "$ESTMP/ok.json" --history-report "$ESTMP/missing.json"
+es_check "no --dir-report at all -> SS-05 (the disk lane never ran)" '.unknowns | any(.check_id == "SS-05" and (.reason | test("no gitleaks dir report")))'
+es_check "valid dir report, history deliberately not run -> no unknowns" '.unknowns == []' --dir-report "$ESTMP/ok.json"
+rm -rf "$ESTMP"
+
 if ! command -v gitleaks >/dev/null 2>&1; then
   echo "SKIP: gitleaks not installed — secrets fixture assertions skipped (install: brew install gitleaks)"
   exit "$fail"
@@ -109,13 +134,18 @@ EVAL="skills/secrets-scanner/scripts/eval_secrets.py"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+# The same three flags the secrets-scanner skill and quick-check pass: the plugin's own rules,
+# never the target's .gitleaks.toml, no CWD .gitleaksignore, and inline gitleaks:allow reported.
+GL_DIR="$PWD/skills/secrets-scanner/gitleaks"
+GL_FLAGS=(--config "$GL_DIR/gitleaks.toml" --gitleaks-ignore-path "$GL_DIR" --ignore-gitleaks-allow)
+
 run_gitleaks() { # $1 subcommand, $2 report path, $3 repo — exit 0/1 are normal; >1 retried once, then loud
   local sub="$1" report="$2" repo="$3" rc=0
-  gitleaks "$sub" --no-banner --redact --report-format json --report-path "$report" "$repo" >/dev/null 2>&1 || rc=$?
+  gitleaks "$sub" --no-banner --redact "${GL_FLAGS[@]}" --report-format json --report-path "$report" "$repo" >/dev/null 2>&1 || rc=$?
   if [ "$rc" -gt 1 ]; then
     echo "WARN: gitleaks $sub exited $rc for $repo; retrying once"
     rc=0
-    gitleaks "$sub" --no-banner --redact --report-format json --report-path "$report" "$repo" >/dev/null 2>&1 || rc=$?
+    gitleaks "$sub" --no-banner --redact "${GL_FLAGS[@]}" --report-format json --report-path "$report" "$repo" >/dev/null 2>&1 || rc=$?
     if [ "$rc" -gt 1 ]; then
       echo "FAIL: gitleaks $sub errored twice (exit $rc) for $repo"
       fail=1
@@ -195,6 +225,117 @@ run_eval "$REPO"
 assert "suppressed finding is in the appendix, not findings" \
   '(.findings | map(.check_id) | index("SS-03")) == null and (.suppressed | length == 1)'
 
+step "plugin rules, not the scanned repo's: config file and call sites"
+if python3 - "$GL_DIR/gitleaks.toml" <<'PY'
+import sys, tomllib
+cfg = tomllib.load(open(sys.argv[1], "rb"))
+ext = cfg.get("extend", {})
+ok = ext.get("useDefault") is True and not ext.get("path")
+ok = ok and not any(k in cfg for k in ("allowlist", "allowlists", "rules"))
+sys.exit(0 if ok else 1)
+PY
+then
+  echo "OK: plugin gitleaks.toml extends gitleaks' defaults and adds no allowlists or rules"
+else
+  echo "FAIL: plugin gitleaks.toml must set [extend] useDefault = true with no allowlist or rules"; fail=1
+fi
+if [ -e "$GL_DIR/.gitleaksignore" ]; then
+  echo "FAIL: $GL_DIR doubles as --gitleaks-ignore-path and must not contain a .gitleaksignore"; fail=1
+else
+  echo "OK: the plugin's --gitleaks-ignore-path directory holds no .gitleaksignore"
+fi
+# Drift guard: every documented or scripted gitleaks scan carries all three flags.
+GL_CALLS="$(grep -E '`gitleaks (git|dir) ' skills/secrets-scanner/SKILL.md || true)"
+GL_MISSING=0
+# shellcheck disable=SC2016  # the ${CLAUDE_PLUGIN_ROOT} text is matched literally, not expanded
+for flag in '--config "${CLAUDE_PLUGIN_ROOT}/skills/secrets-scanner/gitleaks/gitleaks.toml"' \
+  '--gitleaks-ignore-path "${CLAUDE_PLUGIN_ROOT}/skills/secrets-scanner/gitleaks"' '--ignore-gitleaks-allow'; do
+  if printf '%s\n' "$GL_CALLS" | grep -vF -e "$flag" | grep -q .; then GL_MISSING=1; fi
+done
+if [ "$(printf '%s\n' "$GL_CALLS" | grep -c 'gitleaks')" -eq 2 ] && [ "$GL_MISSING" -eq 0 ]; then
+  echo "OK: both gitleaks commands in secrets-scanner SKILL.md pass --config, --gitleaks-ignore-path and --ignore-gitleaks-allow"
+else
+  echo "FAIL: a gitleaks command in secrets-scanner SKILL.md is missing one of the three plugin flags"; fail=1
+fi
+if grep -qF '"--config", GITLEAKS_CONFIG, "--gitleaks-ignore-path", GITLEAKS_DIR,' skills/quick-check/scripts/quick_check.py \
+  && grep -qF '"--ignore-gitleaks-allow"' skills/quick-check/scripts/quick_check.py; then
+  echo "OK: quick-check's gitleaks call passes the plugin's config, ignore path and --ignore-gitleaks-allow"
+else
+  echo "FAIL: quick-check's gitleaks call is missing a plugin flag"; fail=1
+fi
+
+step "plugin rules: a scanned repo's .gitleaks.toml allowlist cannot hide a secret"
+# The bare `gitleaks dir` calls below (no GL_FLAGS) are deliberate: two are negative controls that
+# show plain gitleaks really hides the planted secret, and the rest only collect fingerprints to
+# write into a fixture .gitleaksignore. Every scan whose result is asserted goes through run_gitleaks.
+REPO="$(tests/fixtures/make-secrets-repo.sh | tail -1)"
+cat > "$REPO/.gitleaks.toml" <<'TOML'
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "fixture: allowlist every path"
+paths = ['''.*''']
+TOML
+# Negative control: plain gitleaks (no --config) honors the allowlist, so the fixture really hides it.
+rm -f "$TMP/raw.json"
+gitleaks dir --no-banner --redact --report-format json --report-path "$TMP/raw.json" "$REPO" >/dev/null 2>&1 || true
+if [ -f "$TMP/raw.json" ] && jq -e 'length == 0' "$TMP/raw.json" >/dev/null; then
+  echo "OK: negative control, plain gitleaks honors the target allowlist and reports nothing"
+else
+  echo "FAIL: negative control, the allowlist fixture did not hide the secret from plain gitleaks"; fail=1
+fi
+run_eval "$REPO"
+assert "allowlisted .env secret is still reported as SS-03" \
+  '.findings | any(.check_id == "SS-03" and .file == ".env")'
+assert "allowlisted history secret is still reported as SS-01" \
+  '.findings | any(.check_id == "SS-01" and .file == "deploy-creds.txt")'
+assert "scan_config records the plugin's rules and that the target .gitleaks.toml was ignored" \
+  '.scan_config.rules == "plugin" and .scan_config.target_gitleaks_toml_ignored and .scan_config.inline_allow_comments == "reported"'
+
+step "plugin rules: an inline gitleaks:allow comment shows in the report"
+REPO="$(tests/fixtures/make-secrets-repo.sh | tail -1)"
+# Randomly generated at run time into the gitignored fixture dir, like every planted secret.
+INLINE_TOKEN="ghp_$({ LC_ALL=C tr -dc 'A-Za-z0-9' 2>/dev/null </dev/urandom | head -c 36; } || true)"
+printf 'API_TOKEN = "%s"  # gitleaks:allow\n' "$INLINE_TOKEN" > "$REPO/app_config.py"
+unset INLINE_TOKEN
+rm -f "$TMP/raw.json"
+gitleaks dir --no-banner --redact --report-format json --report-path "$TMP/raw.json" "$REPO" >/dev/null 2>&1 || true
+if [ -f "$TMP/raw.json" ] && jq -e '[.[] | select(.File | endswith("app_config.py"))] | length == 0' "$TMP/raw.json" >/dev/null; then
+  echo "OK: negative control, plain gitleaks drops the gitleaks:allow line"
+else
+  echo "FAIL: negative control, plain gitleaks did not drop the gitleaks:allow line"; fail=1
+fi
+run_eval "$REPO"
+assert "gitleaks:allow secret is a finding on app_config.py, not dropped" \
+  '.findings | any(.file == "app_config.py" and (.check_id == "SS-03" or .check_id == "SS-02"))'
+assert "no secret values leak from the inline-allow fixture" \
+  '[tostring | test("ghp_[A-Za-z0-9]{36}")] == [false]'
+
+step "plugin rules: a scanned repo's .gitleaksignore is listed as skipped, with an UNKNOWN"
+REPO="$(tests/fixtures/make-secrets-repo.sh | tail -1)"
+rm -f "$TMP/raw.json"
+gitleaks dir --no-banner --redact --report-format json --report-path "$TMP/raw.json" "$REPO" >/dev/null 2>&1 || true
+jq -r '.[].Fingerprint' "$TMP/raw.json" > "$REPO/.gitleaksignore"
+GLI_N="$(grep -c . "$REPO/.gitleaksignore" || true)"
+run_eval "$REPO"
+if [ "$GLI_N" -gt 0 ] && jq -e --argjson n "$GLI_N" --rawfile gli "$REPO/.gitleaksignore" '
+    ([.suppressed[] | select(.source == ".gitleaksignore")] | length == $n)
+    and ([.suppressed[] | select(.source == ".gitleaksignore") | .fingerprint] | sort == ($gli | split("\n") | map(select(length > 0)) | sort))
+    and ([.unknowns[] | select(.check_id == "SS-05" and (.scan_failed | not) and (.reason | test("gitleaksignore")))] | length == 1)' \
+    "$TMP/out.json" >/dev/null; then
+  echo "OK: every .gitleaksignore entry ($GLI_N) is in the Suppressed appendix and one SS-05 UNKNOWN names the file"
+else
+  echo "FAIL: .gitleaksignore entries were not all listed, or the SS-05 UNKNOWN is missing"; fail=1
+fi
+assert ".gitleaksignore listing leaks no secret values" '[tostring | test("ghp_[A-Za-z0-9]{36}")] == [false]'
+python3 scripts/to_sarif.py "$TMP/out.json" -o "$TMP/gli.sarif"
+if jq -e '[.runs[0].results[] | select(.suppressions)] | (length > 0) and all(.ruleId == "SS-05" and .locations[0].physicalLocation.artifactLocation.uri == ".gitleaksignore" and .suppressions[0].status == "underReview")' "$TMP/gli.sarif" >/dev/null; then
+  echo "OK: SARIF lists each .gitleaksignore skip as an SS-05 result under review, not accepted"
+else
+  echo "FAIL: SARIF did not carry the .gitleaksignore skips as SS-05 underReview results"; fail=1
+fi
+
 PERMEVAL="skills/ai-config-audit/scripts/permeval.py"
 
 step "fixture ai-config: AC-01..AC-05 findings + AC-06 unknown"
@@ -259,6 +400,23 @@ python3 "$PERMEVAL" --target "$BADMCP" --home tests/fixtures/ai-config-hardened/
 assert "missing and unparseable Snowflake configs -> two AC-10 unknowns, zero AC-10 findings, pinned packages -> no AC-09" \
   '([.unknowns[] | select(.check_id == "AC-10")] | length == 2) and ([.findings[] | select(.check_id == "AC-10" or .check_id == "AC-09")] | length == 0)'
 
+step "MCP config fail-closed: a JSON config that does not parse (VS Code JSONC comment, trailing comma) is UNKNOWN, never skipped"
+JSONC="$TMP/jsonc"; mkdir -p "$JSONC/.vscode" "$JSONC/.continue/mcpServers"
+# A write-capable Postgres MCP hidden behind one comment line: before the fix this config was silently skipped.
+printf '{\n  // analytics db\n  "servers": {"pg": {"command": "uvx", "args": ["postgres-mcp@0.3.0", "--access-mode=unrestricted"]}}\n}\n' > "$JSONC/.vscode/mcp.json"
+printf '{"mcpServers": [{"name": "x", "command": "npx", "args": ["-y", "pkg"]},]}\n' > "$JSONC/.continue/mcpServers/x.json"
+python3 "$PERMEVAL" --target "$JSONC" --home tests/fixtures/ai-config-hardened/home --emit-json "$TMP/out.json"
+assert "unparseable .vscode/mcp.json and .continue JSON -> one AC-03 UNKNOWN each, naming the file" \
+  '([.unknowns[] | select(.check_id == "AC-03" and (.reason | test("^\\.vscode/mcp\\.json exists but could not be parsed")))] | length == 1) and (.unknowns | any(.check_id == "AC-03" and (.reason | test("\\.continue/mcpServers/x\\.json"))))'
+
+step "AC-10 Toolbox: a tool with no fixed statement (postgres-execute-sql) is UNKNOWN, never counted as a read"
+TBX="$TMP/toolbox"; mkdir -p "$TBX"
+printf '{"mcpServers": {"toolbox": {"command": "toolbox", "args": ["--tools-file", "tools.yaml"]}}}\n' > "$TBX/.mcp.json"
+printf 'tools:\n  churn:\n    kind: postgres-sql\n    statement: SELECT city FROM curated.churn\n  run-sql:\n    kind: postgres-execute-sql\n    source: analytics-pg\n' > "$TBX/tools.yaml"
+python3 "$PERMEVAL" --target "$TBX" --home tests/fixtures/ai-config-hardened/home --emit-json "$TMP/out.json"
+assert "free-form SQL tool -> one AC-10 UNKNOWN naming run-sql (not churn); no AC-10 finding from the SELECT tool" \
+  '([.unknowns[] | select(.check_id == "AC-10" and (.reason | test("no fixed statement")) and (.reason | test("run-sql")) and (.reason | test("churn") | not))] | length == 1) and ([.findings[] | select(.check_id == "AC-10")] | length == 0)'
+
 step "AC-07 posture variants: filesystem.disabled re-fires MEDIUM; enabled without failIfUnavailable is INFO"
 FSOFF="$TMP/fs-off-home"; mkdir -p "$FSOFF/.claude"
 printf '{"sandbox": {"enabled": true, "filesystem": {"disabled": true}}}\n' > "$FSOFF/.claude/settings.json"
@@ -315,6 +473,38 @@ DBTMISS="$TMP/dbtmiss"; mkdir -p "$DBTMISS"
 python3 "$DBT" --target "$DBTMISS" --emit-json "$TMP/out.json"
 assert "no dbt_project.yml -> DBT-03 UNKNOWN, zero findings (fail closed, not a clean report)" \
   '(.findings | length == 0) and ([.unknowns[] | select(.check_id == "DBT-03")] | length == 1)'
+# dbt 1.10+ puts meta and tags under config:, and config: {tags: [...]} has long been valid. A PII
+# model tagged only there must still be seen, or an exposure consuming it passes DBT-01 silently.
+DBTCFG="$TMP/dbtcfg"; mkdir -p "$DBTCFG/models"
+printf 'name: cfg\nversion: "1.0"\n' > "$DBTCFG/dbt_project.yml"
+cat > "$DBTCFG/models/schema.yml" <<'YAML'
+version: 2
+models:
+  - name: patients
+    config:
+      tags: [pii]
+    columns:
+      - name: patient_id
+      - name: email
+        config:
+          meta: {contains_pii: true}
+  - name: patients_masked
+    config:
+      meta: {contains_pii: true, masked: true}
+    columns:
+      - name: patient_id
+exposures:
+  - name: care_agent
+    type: application
+    owner:
+      name: Care
+    depends_on:
+      - ref('patients')
+      - ref('patients_masked')
+YAML
+python3 "$DBT" --target "$DBTCFG" --emit-json "$TMP/out.json"
+assert "config.tags / config.meta are read: DBT-01 fires for patients only, patients_masked declares masking, email is not untagged" \
+  '(.summary.pii_tagged_nodes == ["patients", "patients_masked"]) and (.summary.masking_declared_nodes == ["patients_masked"]) and ([.findings[] | select(.check_id == "DBT-01" and (.evidence | test("depends on patients,")))] | length == 1) and ([.findings[] | select(.check_id == "DBT-02")] | length == 0)'
 
 PLAN="skills/safe-db-access/scripts/plan.py"
 step "planner (v0.6): byte-stable renders for both dialects, refusal paths, sections sum to the whole"
@@ -963,10 +1153,15 @@ EH="$TMP/eh-walkerr"; mkdir -p "$EH/secretsub"
 printf 'ssn,email\n123-45-6789,a@example.com\n' > "$EH/secretsub/hidden.csv"
 printf 'id\n1\n' > "$EH/ok.csv"
 chmod 000 "$EH/secretsub"
-python3 "$CLASSIFY_S" --target "$EH" --emit-json "$TMP/out.json"
+if ls "$EH/secretsub" >/dev/null 2>&1; then
+  # Same guard as the DC-03 file check above: root traverses a chmod 000 directory anyway.
+  echo "SKIP: running as root (chmod 000 directory still listable) - DC-03 subdir check skipped"
+else
+  python3 "$CLASSIFY_S" --target "$EH" --emit-json "$TMP/out.json"
+  assert "unreadable subdir emits a DC-03 unknown (fail-closed, not a silent skip)" \
+    '.unknowns | any(.check_id == "DC-03" and (.reason | test("secretsub")))'
+fi
 chmod 755 "$EH/secretsub"
-assert "unreadable subdir emits a DC-03 unknown (fail-closed, not a silent skip)" \
-  '.unknowns | any(.check_id == "DC-03" and (.reason | test("secretsub")))'
 
 # classify_hints: no raw field text leaks into pii_columns / evidence (blocker: value leak)
 EH2="$TMP/eh-leak"; mkdir -p "$EH2"
@@ -1007,6 +1202,8 @@ if python3 "$PERMEVAL_S" --target "$EHP" --home "$EHHOME" --emit-json "$TMP/out.
     '.unknowns | any(.check_id == "AC-06")'
   assert "permissions:null still produces the AC-01 finding (did not crash out)" \
     '.findings | any(.check_id == "AC-01")'
+  assert "a top-level JSON array in .cursor/mcp.json is an AC-03 UNKNOWN, not a silent skip" \
+    '.unknowns | any(.check_id == "AC-03" and (.reason | test("\\.cursor/mcp\\.json")))'
 else
   echo "FAIL: permeval crashed on hostile config shapes:"; cat "$TMP/err"; fail=1
 fi
@@ -1081,6 +1278,57 @@ assert "quick-check: verdict line 2 says the deny-rule finding is suppressed" \
   '.verdicts[1] | test("deny-rule finding suppressed") and (test("deny rules present") | not)'
 assert "quick-check: SS-01 (history not scanned) is listed even when the secrets lane ran" \
   '.unknowns | any(.check_id == "SS-01")'
+
+step "quick-check: a malformed .gitleaks.toml in the target is ignored, the scan still runs"
+# The plugin passes its own --config, so the target's config is never read, broken or not.
+printf '[allowlist\n' > "$COMBINED/.gitleaks.toml"
+python3 skills/quick-check/scripts/quick_check.py --target "$COMBINED" --home tests/fixtures/ai-config/home --emit-json "$TMP/out.json" >/dev/null
+rm -f "$COMBINED/.gitleaks.toml"
+assert "quick-check: malformed target .gitleaks.toml -> secrets lane ran and SS-03 is still reported" \
+  '(.tools.lanes.secrets == "ran") and (.findings | any(.check_id == "SS-03")) and (.unknowns | any(.check_id == "SS-05") | not)'
+
+step "quick-check: gitleaks dying with exit 1 and no report is UNKNOWN, never 'no secrets found'"
+# gitleaks exits 1 for leaks AND for fatal errors, and a fatal error writes no report. A shim on
+# PATH reproduces that exactly; the combined repo holds an agent-readable .env secret, so a clean
+# verdict here would be a silent false pass.
+GLSHIM="$(mktemp -d)"
+cat > "$GLSHIM/gitleaks" <<'SHIM'
+#!/usr/bin/env bash
+if [ "${1:-}" = "version" ]; then echo "8.30.1"; exit 0; fi
+echo "fatal: simulated gitleaks failure" >&2
+exit 1
+SHIM
+chmod +x "$GLSHIM/gitleaks"
+PATH="$GLSHIM:$PATH" python3 skills/quick-check/scripts/quick_check.py --target "$COMBINED" --home tests/fixtures/ai-config/home --emit-json "$TMP/out.json" >/dev/null
+rm -rf "$GLSHIM"
+assert "quick-check: secrets verdict is UNKNOWN with an SS-05 naming the unwritten report" \
+  '(.verdicts[0] | test("UNKNOWN") and (test("no secrets found") | not)) and (.tools.lanes.secrets == "UNKNOWN") and (.unknowns | any(.check_id == "SS-05" and (.reason | test("was not written"))))'
+
+step "quick-check: a target .gitleaksignore keeps real findings, adds an SS-05, and lists each skip"
+# A second planted secret (random, generated now) is the one the repo's .gitleaksignore skips, so
+# the .env secret must still come through as SS-03.
+printf 'TOKEN=ghp_%s\n' "$({ LC_ALL=C tr -dc 'A-Za-z0-9' 2>/dev/null </dev/urandom | head -c 36; } || true)" > "$COMBINED/skipped-token.txt"
+rm -f "$TMP/raw.json"
+gitleaks dir --no-banner --redact --report-format json --report-path "$TMP/raw.json" "$COMBINED" >/dev/null 2>&1 || true
+jq -r '[.[] | select(.File | endswith("/skipped-token.txt"))][0].Fingerprint // empty' "$TMP/raw.json" > "$COMBINED/.gitleaksignore"
+printf '%s reason=fixture skip\n' "$AC01FP" > "$COMBINED/.ai-data-security-ignore"
+python3 skills/quick-check/scripts/quick_check.py --target "$COMBINED" --home tests/fixtures/ai-config/home --emit-json "$TMP/out.json" > "$TMP/qc.txt"
+GLI_ENTRY="$(head -1 "$COMBINED/.gitleaksignore")"
+rm -f "$COMBINED/.gitleaksignore" "$COMBINED/.ai-data-security-ignore" "$COMBINED/skipped-token.txt"
+if [ -n "$GLI_ENTRY" ]; then
+  assert "quick-check: with a .gitleaksignore the lane still ran, SS-03 stands, and a non-failing SS-05 is listed" \
+    '(.tools.lanes.secrets == "ran") and (.findings | any(.check_id == "SS-03")) and (.unknowns | any(.check_id == "SS-05" and (.scan_failed | not)))'
+  assert "quick-check: verdict line 1 says locations were skipped by the repo's .gitleaksignore" \
+    '.verdicts[0] | test("skipped by the scanned repo.s .gitleaksignore")'
+  if grep -qF -- "- $GLI_ENTRY (via .gitleaksignore)" "$TMP/qc.txt" \
+    && grep -qF -- "- $AC01FP (via .ai-data-security-ignore): fixture skip" "$TMP/qc.txt"; then
+    echo "OK: quick-check text output lists each skipped finding with its source and reason"
+  else
+    echo "FAIL: quick-check text output does not list every skipped finding"; fail=1
+  fi
+else
+  echo "FAIL: combined fixture produced no non-.env finding to put in .gitleaksignore"; fail=1
+fi
 cp "$TMP/qc0.json" "$TMP/out.json"
 
 step "SARIF export: valid 2.1.0 shape, one rule per check, unknowns as notifications, no values"
