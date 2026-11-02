@@ -51,7 +51,9 @@ Warehouse MCP servers run with whatever identity they are given; the warehouse a
 question: does the server's own configuration allow writes at all? Only Postgres MCP Pro has a
 named switch (`--access-mode=restricted`). Snowflake-Labs/mcp uses a per-statement-type list in a
 YAML passed with `--service-config-file` (no fixed path, so the check follows the argument), and
-Toolbox's capability is exactly the SQL in each `tools.yaml` tool. Databricks Labs' server has no
+Toolbox's capability is exactly the SQL in each `tools.yaml` tool; a tool with no fixed
+`statement` (such as `postgres-execute-sql`, which runs whatever SQL the agent sends) is an AC-10
+UNKNOWN, never a read. Databricks Labs' server has no
 write control, so AC-10 reports INFO and defers to DB-01. A config that cannot be found or parsed
 is an AC-10 UNKNOWN: "we could not see the switch" is never "the switch is off".
 

@@ -691,6 +691,18 @@ def check_warehouse_mcp(inventory, target, findings, unknowns):
                 continue
             classes = {tn: classify_statement(tspec["statement"]) for tn, tspec in tools.items()
                        if isinstance(tspec, dict) and isinstance(tspec.get("statement"), str)}
+            # A tool with no fixed `statement` cannot be classified from the file. Toolbox's
+            # *-execute-sql kinds are the dangerous case: they run whatever SQL the agent sends.
+            no_statement = sorted(str(tn) for tn in tools if tn not in classes)
+            if no_statement:
+                unknowns.append({
+                    "check_id": "AC-10",
+                    "reason": f"Toolbox MCP server '{name}' ({label}): {len(no_statement)} tool(s) have no fixed statement "
+                              f"to classify ({', '.join(no_statement)}). A tool such as postgres-execute-sql runs whatever "
+                              "SQL the agent sends, so it can write whatever the connected identity can.",
+                    "action": "Remove free-form SQL tools from an agent's toolbox, or connect the source as an identity "
+                              "with no write grants (db-access-audit DB-01).",
+                })
             writers = sorted(tn for tn, c in classes.items() if c == "write")
             unclassified = sorted(tn for tn, c in classes.items() if c == "unclassified")
             if unclassified:

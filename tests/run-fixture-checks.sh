@@ -293,6 +293,14 @@ python3 "$PERMEVAL" --target "$JSONC" --home tests/fixtures/ai-config-hardened/h
 assert "unparseable .vscode/mcp.json and .continue JSON -> one AC-03 UNKNOWN each, naming the file" \
   '([.unknowns[] | select(.check_id == "AC-03" and (.reason | test("^\\.vscode/mcp\\.json exists but could not be parsed")))] | length == 1) and (.unknowns | any(.check_id == "AC-03" and (.reason | test("\\.continue/mcpServers/x\\.json"))))'
 
+step "AC-10 Toolbox: a tool with no fixed statement (postgres-execute-sql) is UNKNOWN, never counted as a read"
+TBX="$TMP/toolbox"; mkdir -p "$TBX"
+printf '{"mcpServers": {"toolbox": {"command": "toolbox", "args": ["--tools-file", "tools.yaml"]}}}\n' > "$TBX/.mcp.json"
+printf 'tools:\n  churn:\n    kind: postgres-sql\n    statement: SELECT city FROM curated.churn\n  run-sql:\n    kind: postgres-execute-sql\n    source: analytics-pg\n' > "$TBX/tools.yaml"
+python3 "$PERMEVAL" --target "$TBX" --home tests/fixtures/ai-config-hardened/home --emit-json "$TMP/out.json"
+assert "free-form SQL tool -> one AC-10 UNKNOWN naming run-sql (not churn); no AC-10 finding from the SELECT tool" \
+  '([.unknowns[] | select(.check_id == "AC-10" and (.reason | test("no fixed statement")) and (.reason | test("run-sql")) and (.reason | test("churn") | not))] | length == 1) and ([.findings[] | select(.check_id == "AC-10")] | length == 0)'
+
 step "AC-07 posture variants: filesystem.disabled re-fires MEDIUM; enabled without failIfUnavailable is INFO"
 FSOFF="$TMP/fs-off-home"; mkdir -p "$FSOFF/.claude"
 printf '{"sandbox": {"enabled": true, "filesystem": {"disabled": true}}}\n' > "$FSOFF/.claude/settings.json"
