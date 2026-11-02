@@ -61,7 +61,8 @@ each step, one line of result after, and say what each answer changes before ask
    block to a temp file and run
    `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/to_sarif.py" <worker1.json> <worker2.json> … -o <file>`.
    The exporter is deterministic and adds no content: severities map to SARIF levels, UNKNOWNs
-   become tool notifications, suppressions carry their reason. Tell the user the file is as
+   become tool notifications, suppressed findings are marked suppressed with their free-text
+   reason withheld (it is user-written and unredacted). Tell the user the file is as
    shareable as the report (evaluators already redacted values) and that GitHub Code Scanning
    ingests it via `github/codeql-action/upload-sarif`.
 
