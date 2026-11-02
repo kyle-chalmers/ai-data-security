@@ -30,6 +30,11 @@ TOOL_VERSION = "1"
 LANE_TIMEOUT = 35  # seconds per evaluator (3 lanes < 120 s total); a timeout becomes an UNKNOWN, never a pass
 
 EVAL_SECRETS = os.path.join(PLUGIN_ROOT, "skills", "secrets-scanner", "scripts", "eval_secrets.py")
+# The plugin's own gitleaks rules. Passing --config means the target's .gitleaks.toml (and any
+# allowlist in it) is never read; the directory doubles as --gitleaks-ignore-path so a
+# .gitleaksignore in the current directory is not loaded either.
+GITLEAKS_DIR = os.path.join(PLUGIN_ROOT, "skills", "secrets-scanner", "gitleaks")
+GITLEAKS_CONFIG = os.path.join(GITLEAKS_DIR, "gitleaks.toml")
 PERMEVAL = os.path.join(PLUGIN_ROOT, "skills", "ai-config-audit", "scripts", "permeval.py")
 CLASSIFY = os.path.join(PLUGIN_ROOT, "skills", "data-classification", "scripts", "classify_hints.py")
 CHECKS = os.path.join(PLUGIN_ROOT, "reference", "checks.yml")
@@ -84,11 +89,20 @@ def secrets_lane(target, tmp, unknowns):
             "action": "brew install gitleaks (or https://github.com/gitleaks/gitleaks/releases), then re-run.",
         })
         return None, "UNKNOWN"
+    if not os.path.isfile(GITLEAKS_CONFIG):
+        # Never fall back to gitleaks' own lookup, which would read the target's .gitleaks.toml.
+        unknowns.append({
+            "check_id": "SS-05",
+            "reason": "the plugin's gitleaks config is missing, so the scan was not run.",
+            "action": "Reinstall the ai-data-security plugin, then re-run.",
+        })
+        return None, "UNKNOWN"
     report = os.path.join(tmp, "dir.json")
     try:
         proc = subprocess.run(
             [gitleaks, "dir", "--no-banner", "--redact", "--report-format", "json",
-             "--report-path", report, target],
+             "--config", GITLEAKS_CONFIG, "--gitleaks-ignore-path", GITLEAKS_DIR,
+             "--ignore-gitleaks-allow", "--report-path", report, target],
             capture_output=True, text=True, errors="replace", timeout=LANE_TIMEOUT,
         )
         vout = subprocess.run([gitleaks, "version"], capture_output=True, text=True, errors="replace", timeout=10)
@@ -110,10 +124,12 @@ def secrets_lane(target, tmp, unknowns):
                          "action": "Run /ai-data-security:secrets-scanner."})
         return None, "UNKNOWN"
     # gitleaks exits 1 for a fatal error as well as for leaks found. eval_secrets reports a missing
-    # or malformed report as SS-05; the verdict line must then say UNKNOWN, not "no secrets found".
-    failed = [u for u in data.get("unknowns", []) if u.get("check_id") == "SS-05"]
-    if failed:
-        unknowns.extend(dict(u, skill="secrets-scanner") for u in failed)
+    # or malformed report as SS-05 with scan_failed set; the verdict line must then say UNKNOWN,
+    # not "no secrets found". Other SS-05s (a target .gitleaksignore) are listed, but the scan did
+    # run, so its findings stand.
+    ss05 = [u for u in data.get("unknowns", []) if u.get("check_id") == "SS-05"]
+    unknowns.extend(dict(u, skill="secrets-scanner") for u in ss05)
+    if any(u.get("scan_failed", True) for u in ss05):
         return None, "UNKNOWN"
     return data, "ran"
 
@@ -146,11 +162,14 @@ def count(findings, check_id):
 
 
 def suppressed_ids(blob):
-    """Check ids of suppressed findings (fingerprint prefix before the first ':')."""
+    """Check ids of suppressed findings (an explicit check_id, else the fingerprint prefix before
+    the first ':')."""
     ids = []
     for s in blob.get("suppressed", []) if blob else []:
         fp = s.get("fingerprint")
-        if isinstance(fp, str) and fp:
+        if isinstance(s.get("check_id"), str) and s["check_id"]:
+            ids.append(s["check_id"])
+        elif isinstance(fp, str) and fp:
             ids.append(fp.split(":", 1)[0])
     return ids
 
@@ -167,6 +186,11 @@ def verdict_lines(secrets, agent, data):
         denied = count(f, "SS-02")
         sup_n = sum(1 for s in sup if s in ("SS-02", "SS-03"))
         tail = f" {sup_n} secret finding(s) suppressed via .ai-data-security-ignore." if sup_n else ""
+        skipped = sum(1 for s in secrets.get("suppressed", []) if s.get("source") == ".gitleaksignore")
+        if skipped:
+            tail += (f" {skipped} location(s) skipped by the scanned repo's .gitleaksignore,"
+                     " not verified (SS-05).")
+            sup_n += skipped
         if readable:
             lines.append(f"1. Secrets: {readable} agent-readable secret(s) on disk (SS-03, CRITICAL)"
                          + (f"; {denied} more covered by a deny rule (SS-02)" if denied else "")
@@ -330,7 +354,13 @@ def main():
     for u in unknowns:
         print(f"  - {u['check_id']}: {u['reason']} → {u['action']}")
     if suppressed:
-        print(f"Suppressed (appendix): {len(suppressed)} finding(s) via .ai-data-security-ignore")
+        # Every skipped finding is listed, never just counted, so nothing is hidden quietly.
+        print(f"Suppressed ({len(suppressed)}):")
+        for s in suppressed:
+            source = s.get("source", ".ai-data-security-ignore")
+            expiry = f", expires {s['expires']}" if s.get("expires") else ""
+            reason = f": {s['reason']}" if s.get("reason") else ""
+            print(f"  - {s.get('fingerprint', '')} (via {source}{expiry}){reason}")
     key = code_key(lines, unknowns, titles, {cid for cid, _ in breakdown})
     if key:
         print()

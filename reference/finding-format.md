@@ -52,6 +52,10 @@ A file at the audited target's root. One entry per line:
 
 - Matching findings move to the report's **Suppressed appendix** — they are still shown; nothing
   disappears silently.
+- Each suppressed entry carries a `source`. Besides `.ai-data-security-ignore`, secrets-scanner
+  lists every entry of the target's `.gitleaksignore` with `source: ".gitleaksignore"`,
+  `check_id: "SS-05"` and `severity: "UNKNOWN"`, because gitleaks honors that file and cannot be
+  told not to. Those entries are skipped locations the audit could not verify, not accepted risks.
 - An entry past its `expires` date is inactive (the finding returns to the main report, flagged
   as previously suppressed).
 - Lines starting with `#` are comments.
@@ -81,7 +85,7 @@ Deterministic scripts emit, and the orchestrator consumes:
   "tools": { "<tool>": "<version>" },
   "findings": [ { "check_id": "...", "...": "..." } ],
   "unknowns": [ { "check_id": "...", "reason": "...", "action": "..." } ],
-  "suppressed": [ { "fingerprint": "...", "reason": "...", "expires": "..." } ]
+  "suppressed": [ { "fingerprint": "...", "source": "...", "reason": "...", "expires": "..." } ]
 }
 ```
 
