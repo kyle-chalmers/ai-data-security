@@ -1037,10 +1037,15 @@ EH="$TMP/eh-walkerr"; mkdir -p "$EH/secretsub"
 printf 'ssn,email\n123-45-6789,a@example.com\n' > "$EH/secretsub/hidden.csv"
 printf 'id\n1\n' > "$EH/ok.csv"
 chmod 000 "$EH/secretsub"
-python3 "$CLASSIFY_S" --target "$EH" --emit-json "$TMP/out.json"
+if ls "$EH/secretsub" >/dev/null 2>&1; then
+  # Same guard as the DC-03 file check above: root traverses a chmod 000 directory anyway.
+  echo "SKIP: running as root (chmod 000 directory still listable) - DC-03 subdir check skipped"
+else
+  python3 "$CLASSIFY_S" --target "$EH" --emit-json "$TMP/out.json"
+  assert "unreadable subdir emits a DC-03 unknown (fail-closed, not a silent skip)" \
+    '.unknowns | any(.check_id == "DC-03" and (.reason | test("secretsub")))'
+fi
 chmod 755 "$EH/secretsub"
-assert "unreadable subdir emits a DC-03 unknown (fail-closed, not a silent skip)" \
-  '.unknowns | any(.check_id == "DC-03" and (.reason | test("secretsub")))'
 
 # classify_hints: no raw field text leaks into pii_columns / evidence (blocker: value leak)
 EH2="$TMP/eh-leak"; mkdir -p "$EH2"
