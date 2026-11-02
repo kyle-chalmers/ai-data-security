@@ -357,6 +357,38 @@ DBTMISS="$TMP/dbtmiss"; mkdir -p "$DBTMISS"
 python3 "$DBT" --target "$DBTMISS" --emit-json "$TMP/out.json"
 assert "no dbt_project.yml -> DBT-03 UNKNOWN, zero findings (fail closed, not a clean report)" \
   '(.findings | length == 0) and ([.unknowns[] | select(.check_id == "DBT-03")] | length == 1)'
+# dbt 1.10+ puts meta and tags under config:, and config: {tags: [...]} has long been valid. A PII
+# model tagged only there must still be seen, or an exposure consuming it passes DBT-01 silently.
+DBTCFG="$TMP/dbtcfg"; mkdir -p "$DBTCFG/models"
+printf 'name: cfg\nversion: "1.0"\n' > "$DBTCFG/dbt_project.yml"
+cat > "$DBTCFG/models/schema.yml" <<'YAML'
+version: 2
+models:
+  - name: patients
+    config:
+      tags: [pii]
+    columns:
+      - name: patient_id
+      - name: email
+        config:
+          meta: {contains_pii: true}
+  - name: patients_masked
+    config:
+      meta: {contains_pii: true, masked: true}
+    columns:
+      - name: patient_id
+exposures:
+  - name: care_agent
+    type: application
+    owner:
+      name: Care
+    depends_on:
+      - ref('patients')
+      - ref('patients_masked')
+YAML
+python3 "$DBT" --target "$DBTCFG" --emit-json "$TMP/out.json"
+assert "config.tags / config.meta are read: DBT-01 fires for patients only, patients_masked declares masking, email is not untagged" \
+  '(.summary.pii_tagged_nodes == ["patients", "patients_masked"]) and (.summary.masking_declared_nodes == ["patients_masked"]) and ([.findings[] | select(.check_id == "DBT-01" and (.evidence | test("depends on patients,")))] | length == 1) and ([.findings[] | select(.check_id == "DBT-02")] | length == 0)'
 
 PLAN="skills/safe-db-access/scripts/plan.py"
 step "planner (v0.6): byte-stable renders for both dialects, refusal paths, sections sum to the whole"
