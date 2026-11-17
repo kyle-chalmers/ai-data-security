@@ -13,3 +13,6 @@ ai-data-security.local.md
 .claude/settings.local.json
 
 prompts/
+
+# Private local context
+.internal/
